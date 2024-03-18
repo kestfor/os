@@ -36,7 +36,6 @@ void child(int argc, char *argv[], char *env[]) {
 }
 
 int main(int argc, char *argv[], char *env[]) {
-
     if (argc == 1) {
         return 0;
     }
@@ -52,5 +51,4 @@ int main(int argc, char *argv[], char *env[]) {
     } else {
         parent(pid);
     }
-
 }
