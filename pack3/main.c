@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -30,34 +31,35 @@ void add_name(char *path, char *name) {
 
 int reverse_copy(const char *from, const char *to) {
 
-    printf("copy %s to %s\n", from, to);
-
     int fd_from;
     int fd_to;
-    fd_from = open(from, O_RDONLY, 777);
+    fd_from = open(from, O_RDONLY);
 
     if (fd_from < 0) {
-        perror("cant open source file");
+        perror("error while open source file");
         return -1;
     }
 
-    fd_to = open(to, O_WRONLY | O_CREAT | O_EXCL);
+    fd_to = open(to, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+
     if (fd_to < 0) {
-        perror("cant open destination file");
+        perror("error while open destination file");
         return -1;
     }
+
     struct stat stat_from;
     fstat(fd_from, &stat_from);
-    long start = stat_from.st_size;
+    long start = stat_from.st_size - 1;
     while (true) {
-        start = start < BUFF_SIZE ? 0 : start - BUFF_SIZE;
+        start = start - BUFF_SIZE < 0 ? 0 : start - BUFF_SIZE;
 
         lseek(fd_from, start, 0);
 
-        read(fd_from, buffer, BUFF_SIZE);
+        size_t n = read(fd_from, buffer, BUFF_SIZE);
 
-        reverse(buffer, BUFF_SIZE);
-        write(fd_to, buffer, BUFF_SIZE);
+        reverse(buffer, n);
+
+        write(fd_to, buffer, n);
 
         if (start == 0) {
             break;
@@ -105,26 +107,33 @@ int main(int argc, char *argv[]) {
     add_name(new_dir_name, tmp);
 
 
-    int res = mkdir(new_dir_name, S_IWRITE | S_IREAD | S_IEXEC);
-//    if (res != 0 && res != EEXIST) {
-//        perror("cant create directory");
-//        return -1;
-//    }
+    mkdir(new_dir_name, S_IWRITE | S_IREAD | S_IEXEC);
 
-    size_t end_ind = strlen(og_dir_name);
+    size_t og_end_ind = strlen(og_dir_name);
+    size_t new_end_ind = strlen(new_dir_name);
     char *og_file_path = og_dir_name;
     char *new_file_path = new_dir_name;
     for (struct dirent *entry = readdir(pDirstream); entry != NULL; entry = readdir(pDirstream)) {
         if (entry->d_type == DT_REG) {
-            og_file_path[end_ind] = '\0';
+            og_file_path[og_end_ind] = '\0';
+            new_file_path[new_end_ind] = '\0';
 
             add_name(og_file_path, entry->d_name);
 
-            reverse(entry->d_name, strlen(entry->d_name));
+            char *ext_pt = strrchr(entry->d_name, '.');
+            size_t len_to_reverse = 0;
+
+            if (ext_pt != NULL) {
+                len_to_reverse = ext_pt - entry->d_name;
+            } else {
+                len_to_reverse = strlen(entry->d_name);
+            }
+
+            reverse(entry->d_name, len_to_reverse);
 
             add_name(new_file_path, entry->d_name);
 
-            res = reverse_copy(og_file_path, new_file_path);
+            int res = reverse_copy(og_file_path, new_file_path);
             if (res != 0) {
                 return -1;
             }
