@@ -18,7 +18,8 @@ void parent(int child_pid) {
 
         if (WIFSTOPPED(status) && WSTOPSIG(status) & 0x80) {
             ptrace(PTRACE_GET_SYSCALL_INFO, child_pid, sizeof(info), &info);
-            printf("SYSCALL %llu with args: (%llu, %llu, %llu, %llu, %llu, %llu) = ", info.entry.nr, info.entry.args[0], info.entry.args[1], info.entry.args[2], info.entry.args[3], info.entry.args[4], info.entry.args[5]);
+            printf("SYSCALL %llu with args: (%llu, %llu, %llu, %llu, %llu, %llu) = ", info.entry.nr, info.entry.args[0],
+                   info.entry.args[1], info.entry.args[2], info.entry.args[3], info.entry.args[4], info.entry.args[5]);
 
             ptrace(PTRACE_SYSCALL, child_pid, 0, 0);
             waitpid(child_pid, &status, 0);
