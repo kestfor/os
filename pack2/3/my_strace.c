@@ -21,8 +21,8 @@ void parent(int child_pid) {
             ptrace(PTRACE_GET_SYSCALL_INFO, child_pid, sizeof(info), &info);
             if (info.entry.nr >= table_size) {
                 printf("syscall №%llu (", info.entry.nr);
-                printf("%llu, %llu, %llu, %llu)", info.entry.args[0],
-                       info.entry.args[1], info.entry.args[2], info.entry.args[3]);
+                printf("%llu, %llu, %llu, %llu, %llu, %llu)", info.entry.args[0],
+                       info.entry.args[1], info.entry.args[2], info.entry.args[3], info.entry.args[4], info.entry.args[5]);
             } else {
                 printf("%s(", table[info.entry.nr].name);
                 for (int i = 0; i < table[info.entry.nr].args_num - 1; i++) {
