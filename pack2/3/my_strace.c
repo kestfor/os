@@ -16,7 +16,6 @@ void parent(int child_pid) {
         ptrace(PTRACE_SYSCALL, child_pid, 0, 0);
         waitpid(child_pid, &status, 0);
 
-
         if (WIFSTOPPED(status) && WSTOPSIG(status) & 0x80) {
             ptrace(PTRACE_GET_SYSCALL_INFO, child_pid, sizeof(info), &info);
             if (info.entry.nr >= table_size) {
@@ -30,15 +29,13 @@ void parent(int child_pid) {
                 }
                 printf("%llu)", info.entry.args[table[info.entry.nr].args_num - 1]);
             }
+            ptrace(PTRACE_SYSCALL, child_pid, 0, 0);
+            waitpid(child_pid, &status, 0);
+
+
+            ptrace(PTRACE_GET_SYSCALL_INFO, child_pid, sizeof(info), &info);
+            printf(" = %lld\n", info.exit.rval);
         }
-
-        ptrace(PTRACE_SYSCALL, child_pid, 0, 0);
-        waitpid(child_pid, &status, 0);
-
-
-        ptrace(PTRACE_GET_SYSCALL_INFO, child_pid, sizeof(info), &info);
-        printf(" = %lld\n", info.exit.rval);
-
     }
 
 }
