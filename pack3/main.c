@@ -3,10 +3,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <string.h>
 #include <fcntl.h>
-#include <errno.h>
 #include <stdbool.h>
 
 #define BUFF_SIZE 4096
