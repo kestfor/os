@@ -6,10 +6,10 @@
 #include <linux/ptrace.h>
 #include "syscallent.h"
 
-typedef union foo{
+typedef union buff_union{
     char myByte[sizeof(long)];
     long mylong;
-} foo;
+} buff_union;
 
 void parent(int child_pid) {
     int status;
@@ -33,7 +33,7 @@ void parent(int child_pid) {
                 printf("%s(", table[info.entry.nr].name);
                 for (int i = 0; i < table[info.entry.nr].args_num - 1; i++) {
                     if (info.entry.nr == 1 && i == 1) {
-                        foo buff;
+                        buff_union buff;
                         int len = info.entry.args[i + 1];
                         int offset = 0;
                         while (len > 0) {
