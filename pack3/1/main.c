@@ -8,7 +8,6 @@
 #include <stdbool.h>
 
 #define BUFF_SIZE 4096
-char buffer[BUFF_SIZE];
 
 void reverse(char *buf, size_t len) {
     char tmp;
@@ -48,6 +47,7 @@ int reverse_copy(const char *from, const char *to) {
     struct stat stat_from;
     fstat(fd_from, &stat_from);
     long start = stat_from.st_size - 1;
+    char buffer[BUFF_SIZE];
     while (true) {
         start = start - BUFF_SIZE < 0 ? 0 : start - BUFF_SIZE;
 
@@ -74,11 +74,10 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    char *og_dir_name = malloc(sizeof(char) * 512);
-    char *new_dir_name = malloc(sizeof(char) * 512);
+    char og_dir_name[256];
+    char new_dir_name[256];
 
     if (new_dir_name != getcwd(new_dir_name, BUFF_SIZE)) {
-        free(new_dir_name);
         perror("cant read current dir");
         return -1;
     }
@@ -90,7 +89,7 @@ int main(int argc, char *argv[]) {
 
     strncpy(og_dir_name, argv[1], strlen(argv[1]));
     char *del_pt = strrchr(argv[1], '/');
-    char tmp[512];
+    char tmp[256];
     size_t tmp_len;
     if (del_pt != NULL) {
         tmp_len = strlen(del_pt) - 1;
@@ -105,12 +104,17 @@ int main(int argc, char *argv[]) {
     add_name(new_dir_name, tmp);
 
 
-    mkdir(new_dir_name, S_IWRITE | S_IREAD | S_IEXEC);
+    int res_code = mkdir(new_dir_name, S_IWRITE | S_IREAD | S_IEXEC);
+
+    if (res_code != 0) {
+        perror("Couldn't create directory");
+        return -1;
+    }
 
     size_t og_end_ind = strlen(og_dir_name);
     size_t new_end_ind = strlen(new_dir_name);
-    char *og_file_path = og_dir_name;
-    char *new_file_path = new_dir_name;
+    char *og_file_path = &og_dir_name[0];
+    char *new_file_path = &new_dir_name[0];
     for (struct dirent *entry = readdir(pDirstream); entry != NULL; entry = readdir(pDirstream)) {
         if (entry->d_type == DT_REG) {
             og_file_path[og_end_ind] = '\0';
@@ -139,6 +143,4 @@ int main(int argc, char *argv[]) {
     }
 
     closedir(pDirstream);
-    free(new_dir_name);
-    free(og_dir_name);
 }
