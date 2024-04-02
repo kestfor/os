@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
 
 int make_dir_func(char *dirname, unsigned int mode) {
     return mkdir(dirname, mode);
@@ -87,6 +88,7 @@ char *get_file_from_link(char *link_name) {
     } else {
         buff_size = stat_buff.st_size + 1;
     }
+
     buf = malloc(sizeof(char) * buff_size);
     read = readlink(link_name, buf, buff_size);
 
@@ -145,14 +147,35 @@ int remove_hard_link_func(char *link_name) {
     }
 }
 
+int get_mode_string(unsigned int permission_bits, char *buffer) {
+    memset(buffer, 0, sizeof(char) * 10);
+    int mods_num = 9;
+    int mods[] = {S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IXGRP, S_IROTH, S_IWOTH, S_IXOTH};
+    for (int i = 0; i < mods_num; i++) {
+        if (permission_bits && mods[i]) {
+            if (i % 3 == 0) {
+                buffer[i] = 'r';
+            } else if (i % 3 == 1) {
+                buffer[i] = 'w';
+            } else if (i % 3 == 2) {
+                buffer[i] = 'x';
+            }
+        } else {
+            buffer[i] = '-';
+        }
+    }
+    return 0;
+}
+
 int print_mode_func(char *filename) {
     struct stat stat_buff;
     if (stat(filename, &stat_buff) == -1) {
         perror("Couldn't read file stat");
         return -1;
     }
-
-    printf("Hard links num: %ld, permission bits %d\n", stat_buff.st_nlink, stat_buff.st_mode);
+    char buff[10];
+    get_mode_string(stat_buff.st_mode, buff);
+    printf("Hard links num: %ld, permissions: %s\n", stat_buff.st_nlink, buff);
     return 0;
 }
 
