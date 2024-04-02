@@ -13,6 +13,7 @@ void parent(int child_pid) {
     struct ptrace_syscall_info info;
 
     while (!WIFEXITED(status)) {
+
         ptrace(PTRACE_SYSCALL, child_pid, 0, 0);
         waitpid(child_pid, &status, 0);
 
@@ -29,10 +30,12 @@ void parent(int child_pid) {
                 }
                 printf("%llu)", info.entry.args[table[info.entry.nr].args_num - 1]);
             }
-            ptrace(PTRACE_SYSCALL, child_pid, 0, 0);
-            waitpid(child_pid, &status, 0);
+        }
 
+        ptrace(PTRACE_SYSCALL, child_pid, 0, 0);
+        waitpid(child_pid, &status, 0);
 
+        if (WIFSTOPPED(status) && WSTOPSIG(status) & 0x80) {
             ptrace(PTRACE_GET_SYSCALL_INFO, child_pid, sizeof(info), &info);
             printf(" = %lld\n", info.exit.rval);
         }
