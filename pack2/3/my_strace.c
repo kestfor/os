@@ -6,6 +6,11 @@
 #include <linux/ptrace.h>
 #include "syscallent.h"
 
+typedef union foo{
+    char myByte[sizeof(long)];
+    long mylong;
+} foo;
+
 void parent(int child_pid) {
     int status;
     waitpid(child_pid, &status, 0);
@@ -22,11 +27,25 @@ void parent(int child_pid) {
             if (info.entry.nr >= table_size) {
                 printf("syscall №%llu (", info.entry.nr);
                 printf("%llu, %llu, %llu, %llu, %llu, %llu)", info.entry.args[0],
-                       info.entry.args[1], info.entry.args[2], info.entry.args[3], info.entry.args[4], info.entry.args[5]);
+                       info.entry.args[1], info.entry.args[2], info.entry.args[3], info.entry.args[4],
+                       info.entry.args[5]);
             } else {
                 printf("%s(", table[info.entry.nr].name);
                 for (int i = 0; i < table[info.entry.nr].args_num - 1; i++) {
-                    printf("%llu, ", info.entry.args[i]);
+                    if (info.entry.nr == 1 && i == 1) {
+                        foo buff;
+                        int len = info.entry.args[i + 1];
+                        int offset = 0;
+                        while (len > 0) {
+                            buff.mylong = ptrace(PTRACE_PEEKDATA, child_pid, info.entry.args[i] + offset, NULL);
+                            printf("%-*s", len > sizeof(long) ? (int) sizeof(long) : len, buff.myByte);
+                            len -= sizeof(long);
+                            offset += sizeof(long);
+                        }
+                        printf(", ");
+                    } else {
+                        printf("%llu, ", info.entry.args[i]);
+                    }
                 }
                 printf("%llu)", info.entry.args[table[info.entry.nr].args_num - 1]);
             }
@@ -53,7 +72,6 @@ int main(int argc, char *argv[], char *env[]) {
     if (argc == 1) {
         return 0;
     }
-
     int pid = fork();
     if (pid < 0) {
         perror("fork fail");
