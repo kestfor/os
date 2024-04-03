@@ -106,6 +106,7 @@ int print_symbolic_link_func(char *link_name) {
         free(file_name);
         return 0;
     } else {
+        free(file_name);
         return -1;
     }
 }
@@ -117,6 +118,7 @@ int print_file_from_symbolic_link_func(char *link_name) {
         free(file_name);
         return 0;
     } else {
+        free(file_name);
         return -1;
     }
 }
