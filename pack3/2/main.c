@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
             return print_mode_func(argv[1]);
         case change_mode: {
             char *tmp;
-            long mode = strtol(argv[2], &tmp, 10);
+            long mode = strtol(argv[2], &tmp, 16);
             if (mode == LLONG_MAX || mode == LLONG_MIN) {
                 perror("can't parse permissions");
                 return -1;

@@ -152,7 +152,7 @@ int get_mode_string(unsigned int permission_bits, char *buffer) {
     int mods_num = 9;
     int mods[] = {S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IWGRP, S_IXGRP, S_IROTH, S_IWOTH, S_IXOTH};
     for (int i = 0; i < mods_num; i++) {
-        if (permission_bits && mods[i]) {
+        if (permission_bits & mods[i]) {
             if (i % 3 == 0) {
                 buffer[i] = 'r';
             } else if (i % 3 == 1) {
