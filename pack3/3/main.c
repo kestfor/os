@@ -86,37 +86,40 @@ int get_mem_range(char *maps_filename, page_array *pg_array) {
     return 0;
 }
 
-int inspect_file(int fd_from, int fd_to, uint64_t start_addr, uint64_t end_addr) {
+int inspect_file(int fd_from, int fd_to, page_array *pg_array) {
     size_t buff_size = 256;
     char buff[buff_size];
     size_t offset = 0;
-
-    for (uint64_t i = start_addr; i <= end_addr; i += PAGE_SIZE) {
-        memset(buff, '\0', buff_size);
-        uint64_t data;
-        uint64_t index = (i / PAGE_SIZE) * sizeof(uint64_t);
-        if (pread(fd_from, &data, sizeof(data), (long) index) != sizeof(data)) {
-            perror("error while reading file");
-            return -1;
+    for (int j = 0; j < pg_array->size; j++) {
+        page curr_page = pg_array->array[j];
+        for (uint64_t i = curr_page.start_addr; i <= curr_page.end_addr; i += PAGE_SIZE) {
+            memset(buff, '\0', buff_size);
+            uint64_t data;
+            uint64_t index = (i / PAGE_SIZE) * sizeof(uint64_t);
+            if (pread(fd_from, &data, sizeof(data), (long) index) != sizeof(data)) {
+                perror("error while reading file");
+                return -1;
+            }
+            sprintf(buff, "addr: 0x%lx, "
+                          "page frame num: %lx, "
+                          "swap type: %ld, "
+                          "swap offset: %lx, "
+                          "soft-dirty: %ld, "
+                          "exclusively mapped: %ld, "
+                          "file-page/shared-anon: %ld, "
+                          "swapped: %ld, "
+                          "present: %ld\n",
+                    i, data & 0x7fffffffffffff, data & 15, data & (0x7fffffffffffff - 15), (data >> 55) & 1,
+                    (data >> 56) & 1,
+                    (data >> 61) & 1, (data >> 62) & 1, (data >> 63) & 1
+            );
+            buff_size = strlen(buff);
+            if (pwrite(fd_to, buff, buff_size, (long) offset) != sizeof(char) * buff_size) {
+                perror("error while writing file");
+                return -1;
+            }
+            offset += buff_size;
         }
-        sprintf(buff, "addr: 0x%lx, "
-               "page frame num: %lx, "
-               "swap type: %ld, "
-               "swap offset: %lx, "
-               "soft-dirty: %ld, "
-               "exclusively mapped: %ld, "
-               "file-page/shared-anon: %ld, "
-               "swapped: %ld, "
-               "present: %ld\n",
-               i, data & 0x7fffffffffffff, data & 15, data & (0x7fffffffffffff - 15), (data >> 55) & 1, (data >> 56) & 1,
-               (data >> 61) & 1, (data >> 62) & 1, (data >> 63) & 1
-        );
-        buff_size = strlen(buff);
-        if (pwrite(fd_to, buff, buff_size, (long) offset) != sizeof(char) * buff_size) {
-            perror("error while writing file");
-            return -1;
-        }
-        offset += buff_size;
     }
     return 0;
 }
@@ -165,16 +168,9 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    for (int i = 0; i < pg_array.size; i++) {
-        res_code = inspect_file(fd_pagemap, fd_output, pg_array.array[i].start_addr, pg_array.array[i].end_addr);
-        if (res_code != 0) {
-            close(fd_pagemap);
-            close(fd_output);
-            clear_page_array(&pg_array);
-            return -1;
-        }
-    }
+    res_code = inspect_file(fd_pagemap, fd_output, &pg_array);
     clear_page_array(&pg_array);
     close(fd_output);
     close(fd_pagemap);
+    return res_code;
 }
