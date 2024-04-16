@@ -20,7 +20,7 @@ enum func_types get_func_type(char *func_name) {
 }
 
 void args_num_mismatch() {
-    perror("Argument number mismatch");
+    printf("Argument number mismatch\n");
 }
 
 int main(int argc, char *argv[]) {

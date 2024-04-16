@@ -78,7 +78,7 @@ char *get_file_from_link(char *link_name) {
     struct stat stat_buff;
     char *buf;
     ssize_t read, buff_size;
-    if (stat(link_name, &stat_buff) == -1) {
+    if (lstat(link_name, &stat_buff) == -1) {
         perror("Couldn't read symbolic link stat");
         return NULL;
     }
@@ -92,8 +92,9 @@ char *get_file_from_link(char *link_name) {
     buf = malloc(sizeof(char) * buff_size);
     read = readlink(link_name, buf, buff_size);
 
-    if (read != buff_size) {
-        perror("Couldn't read full symbolic link");
+    if (read == -1) {
+        printf("Couldn't read symbolic link");
+        free(buf);
         return NULL;
     }
     return buf;
