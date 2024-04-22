@@ -31,7 +31,10 @@ static int class(uint size) {
     }
 }
 
+//lists represented linked list of available blocks of memory
 static header_t *lists[16] = {NULL};
+
+//mapped pages
 static header_t *head = NULL;
 
 static header_t *next_header(header_t *header) {
@@ -101,16 +104,19 @@ static void merge(header_t *left, header_t *right) {
     }
 }
 
+//from free block
 static header_t *next_link(header_t *header) {
     uint64_t *footer = (void *) header + header->size + sizeof(header_t);
     return (header_t *) (footer[-1] & ~7);
 }
 
+//from free block
 static header_t *previous_link(header_t *header) {
     uint64_t *footer = (void *) header + header->size + sizeof(header_t);
     return (header_t *) (footer[-2]);
 }
 
+//set free block footer (2 or 3 type of block)
 static void set_footer(header_t *header, header_t *prev_link, header_t *next_link) {
     uint64_t *footer = (void *) header + sizeof(header_t) + header->size;
     if (header->size > 16) {
@@ -174,7 +180,6 @@ void *my_malloc(size_t size) {
             return NULL;
         }
         push_front(head, lists);
-        //set_footer(head, NULL, NULL);
     }
 
     //alignment
