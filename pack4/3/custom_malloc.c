@@ -22,8 +22,8 @@ typedef struct header_t {
 } header_t;
 
 static int class(uint size) {
-    if (size < 64) {
-        return (int) (size - 8) >> 2;
+    if (size < 128) {
+        return (int) (size - 16) >> 3;
     } else if (size < 256) {
         return 14;
     } else {
@@ -183,8 +183,8 @@ void *my_malloc(size_t size) {
     }
 
     //alignment
-    if (size < 8) {
-        size = 8;
+    if (size < 16) {
+        size = 16;
     } else {
         size = (size + 7) & (~7);
     }

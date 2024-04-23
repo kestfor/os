@@ -14,6 +14,12 @@ int main() {
     memset(buff, 0, 512);
     memcpy(buff, "hello world", 11);
     printf("\n%s", buff);
+    int *a = my_malloc(sizeof(int));
+    char *b = my_malloc(sizeof(char));
+    double *c = my_malloc(sizeof(double));
+    my_free(b);
+    my_free(a);
+    my_free(c);
     my_free(buff);
     my_free(array);
 }
