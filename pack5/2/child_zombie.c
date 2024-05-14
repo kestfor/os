@@ -19,7 +19,7 @@ int main() {
     }
 
     if (pid == 0) {
-        exit(2);
+        exit(5);
     } else {
         printf("zombie pid: %d", pid);
         fflush(stdout);

@@ -31,7 +31,7 @@ int main() {
         printf("from child: local var: addr: %p, value: %d\n", &local_var, local_var);
         printf("from child: global var: addr: %p, value: %d\n", &global_var, global_var);
 
-        exit(2);
+        exit(5);
 
     } else {
         printf("from parent: local var: addr: %p, value: %d\n", &local_var, local_var);

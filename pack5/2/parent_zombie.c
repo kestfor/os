@@ -27,11 +27,17 @@ int main() {
         }
 
         if (new_pid == 0) {
+            printf("parent pid of child before: %d\n", getppid());
+            fflush(stdout);
+            sleep(5);
+            printf("parent pid of child after: %d\n", getppid());
+            fflush(stdout);
             sleep(30);
         } else {
+            sleep(2);
             printf("zombie parent pid: %d\n", getpid());
-            printf("child pid: %d", new_pid);
-            exit(2);
+            printf("child pid: %d\n", new_pid);
+            exit(5);
         }
     } else {
         sleep(50);
