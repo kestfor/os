@@ -53,4 +53,6 @@ int main() {
     } else {
         reader(pipes[0]);
     }
+    close(pipes[0]);
+    close(pipes[1]);
 }
