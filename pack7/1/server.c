@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 
 int main() {
@@ -21,7 +22,7 @@ int main() {
 
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(81);
+    server_addr.sin_port = htons(1025);
     server_addr.sin_addr.s_addr = INADDR_ANY;
     bzero(&(server_addr.sin_zero),8);
 
@@ -48,7 +49,7 @@ int main() {
 
         client_addr.sin_family = AF_INET;
 
-        if (sendto(server_socket, buff, buff_size, 0, (struct sockaddr *) &client_addr, sizeof(client_addr)) == -1) {
+        if (sendto(server_socket, buff, buff_size, 0, (struct sockaddr *) &client_addr, len) == -1) {
             perror("sendto() failed");
             close(server_socket);
             exit(1);
