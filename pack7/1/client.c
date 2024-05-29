@@ -67,7 +67,7 @@ int main() {
 
         server_addr.sin_family = AF_INET;
 
-        unsigned int size = sizeof(struct sockaddr);
+        socklen_t size = sizeof(struct sockaddr);
 
         if (recvfrom(client_socket, buff, buff_size, 0, (struct sockaddr *) &server_addr, &size) == -1) {
             perror("recvfrom() failed");

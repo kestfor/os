@@ -38,7 +38,7 @@ int main() {
     char buff[buff_size];
     while (true) {
         printf("listen for messages...\n");
-        unsigned int len;
+        socklen_t len = sizeof(struct sockaddr);
         if (recvfrom(server_socket, buff, buff_size, 0, (struct sockaddr *) &client_addr, &len) == -1) {
             perror("recvfrom() failed");
             close(server_socket);
