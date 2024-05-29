@@ -80,8 +80,7 @@ int main() {
             close(server_socket);
             handle_client(client_socket);
             close(client_socket);
+            break;
         }
     }
-
-
 }
