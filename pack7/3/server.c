@@ -95,7 +95,6 @@ void handle_notifications(int server_socket) {
             if (add_new_client(client_descriptors, client_socket, MAX_CONNECTIONS) == ERROR_OCCURRED) {
                 printf("can't register new client\n");
                 close(client_socket);
-                continue;
             } else {
                 printf("added new client with fd: %d\n", client_socket);
             }
