@@ -1,0 +1,38 @@
+558a7b2a5000-558a7b2c6000 rw-p 00000000 00:00 0                          [heap]
+7fc01933e000-7fc01933f000 ---p 00000000 00:00 0
+7fc01933f000-7fc019b3f000 rw-p 00000000 00:00 0
+7fc019b3f000-7fc019b40000 ---p 00000000 00:00 0
+7fc019b40000-7fc01a340000 rw-p 00000000 00:00 0
+7fc01a340000-7fc01a341000 ---p 00000000 00:00 0
+7fc01a341000-7fc01ab41000 rw-p 00000000 00:00 0
+7fc01ab41000-7fc01ab42000 ---p 00000000 00:00 0
+7fc01ab42000-7fc01b342000 rw-p 00000000 00:00 0
+7fc01b342000-7fc01b343000 ---p 00000000 00:00 0
+7fc01b343000-7fc01bb46000 rw-p 00000000 00:00 0
+7fc01bb46000-7fc01bb6e000 r--p 00000000 08:20 24889                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7fc01bb6e000-7fc01bd03000 r-xp 00028000 08:20 24889                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7fc01bd03000-7fc01bd5b000 r--p 001bd000 08:20 24889                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7fc01bd5b000-7fc01bd5c000 ---p 00215000 08:20 24889                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7fc01bd5c000-7fc01bd60000 r--p 00215000 08:20 24889                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7fc01bd60000-7fc01bd62000 rw-p 00219000 08:20 24889                      /usr/lib/x86_64-linux-gnu/libc.so.6
+7fc01bd62000-7fc01bd6f000 rw-p 00000000 00:00 0
+7fc01bd75000-7fc01bd77000 rw-p 00000000 00:00 0
+7fc01bd77000-7fc01bd79000 r--p 00000000 08:20 24885                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7fc01bd79000-7fc01bda3000 r-xp 00002000 08:20 24885                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7fc01bda3000-7fc01bdae000 r--p 0002c000 08:20 24885                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7fc01bdaf000-7fc01bdb1000 r--p 00037000 08:20 24885                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7fc01bdb1000-7fc01bdb3000 rw-p 00039000 08:20 24885                      /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+7ffc5aa54000-7ffc5aa75000 rw-p 00000000 00:00 0                          [stack]
+7ffc5aab6000-7ffc5aaba000 r--p 00000000 00:00 0                          [vvar]
+7ffc5aaba000-7ffc5aabc000 r-xp 00000000 00:00 0                          [vdso]
+
+
+
+//prog log
+main [41506 361 41506]: Hello from main!
+mythread [41506 361 41507]: Hello from mythread!, static local: 0x558a7b27e018, local: 0x7fc01bb41e24, global: 0x558a7b27e014, pid: 140463075239488
+mythread [41506 361 41508]: Hello from mythread!, static local: 0x558a7b27e018, local: 0x7fc01b340e24, global: 0x558a7b27e014, pid: 140463066846784
+mythread [41506 361 41509]: Hello from mythread!, static local: 0x558a7b27e018, local: 0x7fc01ab3fe24, global: 0x558a7b27e014, pid: 140463058454080
+mythread [41506 361 41510]: Hello from mythread!, static local: 0x558a7b27e018, local: 0x7fc01a33ee24, global: 0x558a7b27e014, pid: 140463050061376
+mythread [41506 361 41511]: Hello from mythread!, static local: 0x558a7b27e018, local: 0x7fc019b3de24, global: 0x558a7b27e014, pid: 140463041668672
+
