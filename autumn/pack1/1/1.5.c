@@ -52,19 +52,22 @@
 //
 //}
 
-
+void sig_handler(int sig) {
+    printf("Signal handling thread got SIGINT\n");
+}
 
 void *func1(void *args) {
-    sigset_t set;
-    sigemptyset(&set);
-    sigaddset(&set, SIGINT);
-    int sig;
+//    sigset_t full_set;
+//    sigfillset(&full_set);
+//    sigset_t set;
+//    sigemptyset(&set);
+//    sigaddset(&set, SIGINT);
+//
+//    if (pthread_sigmask(SIG_UNBLOCK, &set, &full_set) != 0) {
+//        perror("sigmask failed");
+//    }
 
-    if (sigwait(&set, &sig) != 0) {
-        perror("sigwait failed");
-    } else {
-        printf("Signal handling thread got SIGINT\n");
-    }
+    signal(SIGINT, sig_handler);
 
     pthread_exit(NULL);
 }
@@ -94,7 +97,10 @@ main(int argc, char *argv[]) {
        will inherit a copy of the signal mask. */
 
     sigfillset(&set);
+    sigdelset(&set, SIGINT);
+
     s = pthread_sigmask(SIG_SETMASK, &set, NULL);
+
     if (s != 0) {
         perror("sigmask failed");
         return -1;
@@ -111,9 +117,19 @@ main(int argc, char *argv[]) {
         return -1;
     }
 
+    sigset_t before = set;
+    sigfillset(&set);
+
+    s = pthread_sigmask(SIG_SETMASK, &set, &before);
+
+    if (s != 0) {
+        perror("sigmask failed");
+        return -1;
+    }
+
     int pid = getpid();
 
-    sleep(1);
+    sleep(2);
     kill(pid, SIGINT);
     sleep(1);
     kill(pid, SIGQUIT);
