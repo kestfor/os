@@ -51,25 +51,25 @@ int main() {
 //    return 0;
 
 
-////  2 часть
-//
-//    pthread_t thread;
-//
-//    pthread_attr_t attr;
-//    pthread_attr_init(&attr);
-//    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-//
-//    while (true) {
-//        int err = pthread_create(&thread, &attr, func3, NULL);
-//
-//        if (err != 0) {
-//            perror("thread create failed");
-//            break;
-//        }
-//
-//        pthread_join(thread, NULL);
-//
-//    }
-//
-//    pthread_attr_destroy(&attr);
+//  2 часть
+
+    pthread_t thread;
+
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+
+    while (true) {
+        int err = pthread_create(&thread, &attr, func3, NULL);
+
+        if (err != 0) {
+            perror("thread create failed");
+            break;
+        }
+
+        pthread_join(thread, NULL);
+
+    }
+
+    pthread_attr_destroy(&attr);
 }
