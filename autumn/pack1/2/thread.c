@@ -29,7 +29,6 @@ void *create_stack(int stack_size) {
 //    stack_fd = open(stack_file, O_RDWR | O_CREAT, 0660);
 //    ftruncate(stack_fd, 0);
 //    ftruncate(stack_fd, stack_size);
-
     stack = mmap(NULL, stack_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
     return stack;
@@ -49,12 +48,18 @@ int start_routine_wrapper(void *args) {
     while (!th->joined) {
         sleep(1);
     }
-    return 0;
+    return clean_up(th);
 }
 
 int thread_create(thread_t *th, start_routine_t start_routine, void *args) {
     void *stack = create_stack(STACK_SIZE);
-    mprotect(stack + PAGE_SIZE, STACK_SIZE - PAGE_SIZE, PROT_READ | PROT_WRITE);
+    if (stack == (void *)-1) {
+        return -1;
+    }
+
+    if (mprotect(stack + PAGE_SIZE, STACK_SIZE - PAGE_SIZE, PROT_READ | PROT_WRITE) != 0) {
+         return -1;
+    }
     memset(stack + PAGE_SIZE, 0, STACK_SIZE - PAGE_SIZE);
 
     thread_struct *new_thread = (stack + STACK_SIZE - sizeof(thread_struct));
@@ -69,7 +74,7 @@ int thread_create(thread_t *th, start_routine_t start_routine, void *args) {
     int err = clone(start_routine_wrapper,
                     stack,
                     CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD | CLONE_SIGHAND | SIGCHLD |
-                    CLONE_SYSVSEM | CLONE_CHILD_CLEARTID | CLONE_PARENT_SETTID,
+                    CLONE_SYSVSEM,
                     new_thread);
 
 

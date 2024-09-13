@@ -2,13 +2,25 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdbool.h>
 
 void sig_handler(int sig) {
     printf("Signal handling thread got SIGINT\n");
+    pthread_exit(NULL);
 }
 
 void *func1(void *args) {
+    sigset_t set;
+
+    sigfillset(&set);
+    sigdelset(&set, SIGINT);
+
+    pthread_sigmask(SIG_SETMASK, &set, NULL);
+
     signal(SIGINT, sig_handler);
+    while (true) {
+        sleep(1);
+    }
 
     pthread_exit(NULL);
 }
@@ -35,7 +47,6 @@ main(int argc, char *argv[]) {
     int s;
 
     sigfillset(&set);
-    sigdelset(&set, SIGINT);
 
     s = pthread_sigmask(SIG_SETMASK, &set, NULL);
 
@@ -44,24 +55,13 @@ main(int argc, char *argv[]) {
         return -1;
     }
 
-    s = pthread_create(&thread1, NULL, &func1, NULL);
-    if (s != 0) {
+    if (pthread_create(&thread1, NULL, &func1, NULL) != 0) {
         perror("pthread create failed");
         return -1;
     }
 
     if (pthread_create(&thread2, NULL, &func2, NULL) != 0) {
         perror("pthread create failed");
-        return -1;
-    }
-
-    sigset_t before = set;
-    sigfillset(&set);
-
-    s = pthread_sigmask(SIG_SETMASK, &set, &before);
-
-    if (s != 0) {
-        perror("sigmask failed");
         return -1;
     }
 

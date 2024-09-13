@@ -22,12 +22,13 @@ void *func2(void *args) {
 void *func3(void *args) {
     pthread_t thread = pthread_self();
     //pthread_detach(thread);
+    sleep(1);
     printf("идентификатор потока: %lu\n", thread);
     return NULL;
 }
 
 int main() {
-//// 1 часть
+// 1 часть
 //    pthread_t thread1, thread2;
 //    int err = pthread_create(&thread1, NULL, func1, NULL);
 //
@@ -57,19 +58,21 @@ int main() {
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-    while (true) {
-        int err = pthread_create(&thread, &attr, func3, NULL);
-
-        if (err != 0) {
-            perror("thread create failed");
-            break;
-        }
-
-        pthread_join(thread, NULL);
-
-    }
+//    while (true) {
+      int err = pthread_create(&thread, &attr, func3, NULL);
+//
+//        if (err != 0) {
+//            perror("thread create failed");
+//            break;
+//        }
+//
+//        pthread_join(thread, NULL);
+//
+//    }
 
     pthread_attr_destroy(&attr);
+    pthread_exit(NULL);
+    return 0;
 }

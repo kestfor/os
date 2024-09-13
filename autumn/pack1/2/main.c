@@ -19,7 +19,7 @@ int main() {
         args[i] = i;
         int err = thread_create(&threads[i], func, &args[i]);
         if (err != 0) {
-            printf("thread_struct create failed");
+            printf("thread create failed");
         }
     }
 
