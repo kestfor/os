@@ -15,9 +15,10 @@ int main() {
     int len = 5;
     thread_t threads[len];
     int args[len];
+
     for (int i = 0; i < len; i++) {
         args[i] = i;
-        int err = thread_create(&threads[i], func, &args[i]);
+        int err = thread_create(&threads[i], func, &args[i], JOINABLE);
         if (err != 0) {
             printf("thread create failed");
         }

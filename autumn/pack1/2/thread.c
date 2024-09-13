@@ -7,8 +7,8 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define PAGE_SIZE  4096
 #define STACK_SIZE (PAGE_SIZE*8)
@@ -17,20 +17,13 @@ struct thread {
     start_routine_t start_routine;
     void *args;
     void *result;
+    enum THREAD_TYPE type;
     volatile int exited;
-    volatile int joined;
 };
 
 void *create_stack(int stack_size) {
-//    char stack_file[128];
-//    int stack_fd;
     void *stack;
-//    snprintf(stack_file, sizeof(stack_file), "stack-%d", id);
-//    stack_fd = open(stack_file, O_RDWR | O_CREAT, 0660);
-//    ftruncate(stack_fd, 0);
-//    ftruncate(stack_fd, stack_size);
     stack = mmap(NULL, stack_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-
     return stack;
 }
 
@@ -43,15 +36,14 @@ int start_routine_wrapper(void *args) {
     thread_struct *th = args;
     void *result = th->start_routine(th->args);
     th->result = result;
-
     th->exited = true;
-    while (!th->joined) {
-        sleep(1);
+    if (th->type == DETACHED) {
+        return clean_up(th);
     }
-    return clean_up(th);
+    return 0;
 }
 
-int thread_create(thread_t *th, start_routine_t start_routine, void *args) {
+int thread_create(thread_t *th, start_routine_t start_routine, void *args, enum THREAD_TYPE type) {
     void *stack = create_stack(STACK_SIZE);
     if (stack == (void *)-1) {
         return -1;
@@ -67,7 +59,7 @@ int thread_create(thread_t *th, start_routine_t start_routine, void *args) {
     new_thread->args = args;
     new_thread->result = NULL;
     new_thread->exited = false;
-    new_thread->joined = false;
+    new_thread->type = type;
 
     stack = (void *) new_thread;
 
@@ -89,12 +81,16 @@ int thread_create(thread_t *th, start_routine_t start_routine, void *args) {
 
 int thread_join(thread_t th, void **result) {
     thread_struct *thread = th;
+
+    if (th->type == DETACHED) {
+        return -1;
+    }
+
     while (!thread->exited) {
-        sleep(1);
+        usleep(10000);
     }
     if (result != NULL) {
         *result = thread->result;
     }
-    thread->joined = true;
-    return 0;
+    return clean_up(th);
 }
