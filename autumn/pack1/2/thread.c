@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-
 #define PAGE_SIZE  4096
 #define STACK_SIZE (PAGE_SIZE*8)
 
@@ -32,7 +31,6 @@ int clean_up(thread_struct *th) {
 }
 
 int start_routine_wrapper(void *args) {
-
     thread_struct *th = args;
     void *result = th->start_routine(th->args);
     th->result = result;
