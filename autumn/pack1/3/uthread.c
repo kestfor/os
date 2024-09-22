@@ -8,6 +8,8 @@
 #define PAGE_SIZE  4096
 #define STACK_SIZE (PAGE_SIZE*8)
 
+static int thread_id_curr = 0;
+
 typedef struct list_node {
     void *data;
     struct list_node *next;
@@ -17,6 +19,7 @@ typedef struct list_node {
 
 struct uthread {
 
+    int thread_id;
     ucontext_t ctx;
     start_routine_t start_routine;
     void *args;
@@ -30,12 +33,30 @@ static list_node *curr_head = NULL;
 static list_node *curr_tail = NULL;
 static list_node *curr = NULL;
 
+ucontext_t reschedule;
+
 static bool main_initialized = false;
+
+//void print_list(list_node *start_node) {
+//    list_node *start = start_node;
+//
+//    printf("%d ", ((uthread *) start->data)->thread_id);
+//    start = start_node->next;
+//    while (start != start_node) {
+//        printf("%d ", ((uthread *) start->data)->thread_id);
+//        start = start->next;
+//    }
+//    printf("thread_id %d\n", ((uthread *) (start->data))->thread_id);
+//}
 
 void *create_stack(int stack_size) {
     void *stack;
     stack = mmap(NULL, stack_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     return stack;
+}
+
+void reschedule_threads(void) {
+    setcontext(&(((uthread *)curr->data)->ctx));
 }
 
 void remove_thread_link(list_node *node) {
@@ -46,16 +67,9 @@ void remove_thread_link(list_node *node) {
         curr_tail = node->prev;
     }
 
-    ucontext_t prev = ((uthread *) node->prev->data)->ctx;
-    ucontext_t next = ((uthread *) node->next->data)->ctx;
-    if (node->prev == node->next) {
-        next.uc_link = NULL;
-    } else {
-        next.uc_link = &prev;
-    }
     node->next->prev = node->prev;
     node->prev->next = node->next;
-
+    curr = node->next;
 }
 
 int clean_up(uthread *th) {
@@ -65,7 +79,7 @@ int clean_up(uthread *th) {
 void thread_routine_wrapper(int higher_bits, int lower_bits) {
     int *int_casted = (int *) ((((long long) higher_bits) << 32) | (((long long) lower_bits) & 0xffffffff));
     uthread *thread = (uthread *) int_casted;
-    void *res = thread->start_routine(thread->args);
+    thread->start_routine(thread->args);
     remove_thread_link(&thread->node);
     clean_up(thread);
 }
@@ -79,6 +93,14 @@ int uthread_create(uthread_t *thread, start_routine_t start_routine, void *args)
         main_thread.node.next = &main_thread.node;
         curr_head = &main_thread.node;
         curr_tail = &main_thread.node;
+        main_thread.thread_id = thread_id_curr++;
+
+        getcontext(&reschedule);
+        reschedule.uc_stack.ss_sp = malloc(sizeof(char)*100);
+        reschedule.uc_stack.ss_size = 100;
+        reschedule.uc_link = NULL;
+        makecontext(&reschedule, reschedule_threads, 0);
+
         curr = curr_head;
     }
 
@@ -91,6 +113,7 @@ int uthread_create(uthread_t *thread, start_routine_t start_routine, void *args)
     uthread *new_thread = (stack + STACK_SIZE - sizeof(uthread));
     new_thread->start_routine = start_routine;
     new_thread->args = args;
+    new_thread->thread_id = thread_id_curr++;
 
     getcontext(&(new_thread->ctx));
     new_thread->ctx.uc_stack.ss_sp = stack;
@@ -111,10 +134,9 @@ int uthread_create(uthread_t *thread, start_routine_t start_routine, void *args)
     curr_tail->next = node_addr;
 
     curr_tail = node_addr;
-    new_thread->ctx.uc_link = &((uthread *) (node_addr->prev->data))->ctx;
+    new_thread->ctx.uc_link = &reschedule;
 
     makecontext(&(new_thread->ctx), (void (*)()) thread_routine_wrapper, 2, higher, lower);
-
     *thread = new_thread;
 
     return 0;
@@ -122,15 +144,13 @@ int uthread_create(uthread_t *thread, start_routine_t start_routine, void *args)
 
 void yield(void) {
     ucontext_t *curr_ctx, *next_ctx;
-
-    curr_ctx = &(((uthread *) curr->data)->ctx);
-    next_ctx = &(((uthread *) (curr->next->data))->ctx);
+    list_node *curr_saved = curr;
     curr = curr->next;
-
+    curr_ctx = &(((uthread *) curr_saved->data)->ctx);
+    next_ctx = &(((uthread *) (curr_saved->next->data))->ctx);
     if (swapcontext(curr_ctx, next_ctx) == -1) {
         printf("swap context failed");
         exit(1);
     }
-
 }
 
