@@ -48,7 +48,7 @@ void remove_thread_link(list_node *node) {
 
     ucontext_t prev = ((uthread *) node->prev->data)->ctx;
     ucontext_t next = ((uthread *) node->next->data)->ctx;
-    if (&prev == &next) {
+    if (node->prev == node->next) {
         next.uc_link = NULL;
     } else {
         next.uc_link = &prev;
