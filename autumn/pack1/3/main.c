@@ -7,7 +7,7 @@ void *thread_func(void *arg) {
     for (int i = 0; i < 2; i++) {
         printf("hello from uthread %d\n", *((int *) arg));
         sleep(1);
-        schedule();
+        yield();
     }
     return NULL;
 }
@@ -24,7 +24,7 @@ int main() {
     for (int i = 0; i < 4; i++) {
         printf("hello from main thread\n");
         sleep(1);
-        schedule();
+        yield();
     }
 
     int thread_num3 = 3;
@@ -32,7 +32,7 @@ int main() {
     for (int i = 0; i < 3; i++) {
         printf("hello from main thread\n");
         sleep(1);
-        schedule();
+        yield();
     }
 
 }

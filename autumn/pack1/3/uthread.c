@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <ucontext.h>
 #include <sys/mman.h>
-#include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
 #include "uthread.h"
@@ -67,9 +66,7 @@ void thread_routine_wrapper(int higher_bits, int lower_bits) {
     int *int_casted = (int *) ((((long long) higher_bits) << 32) | (((long long) lower_bits) & 0xffffffff));
     uthread *thread = (uthread *) int_casted;
     void *res = thread->start_routine(thread->args);
-    printf("thread finished\n");
     remove_thread_link(&thread->node);
-    printf("thread link cleared\n");
     clean_up(thread);
 }
 
@@ -100,9 +97,7 @@ int uthread_create(uthread_t *thread, start_routine_t start_routine, void *args)
     new_thread->ctx.uc_stack.ss_size = STACK_SIZE - sizeof(uthread);
 
     int higher, lower;
-
     int *int_casted = (int *) new_thread;
-
     lower = (int) (((long) int_casted) & 0xffffffff);
     higher = (int) ((((long) int_casted) >> 32) & 0xffffffff);
 
@@ -125,7 +120,7 @@ int uthread_create(uthread_t *thread, start_routine_t start_routine, void *args)
     return 0;
 }
 
-void schedule(void) {
+void yield(void) {
     ucontext_t *curr_ctx, *next_ctx;
 
     curr_ctx = &(((uthread *) curr->data)->ctx);
