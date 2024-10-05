@@ -33,7 +33,7 @@ static list_node *curr_head = NULL;
 static list_node *curr_tail = NULL;
 static list_node *curr = NULL;
 
-ucontext_t reschedule;
+//ucontext_t reschedule;
 
 static bool main_initialized = false;
 
@@ -55,9 +55,9 @@ void *create_stack(int stack_size) {
     return stack;
 }
 
-void reschedule_threads(void) {
-    setcontext(&(((uthread *)curr->data)->ctx));
-}
+//void reschedule_threads(void) {
+//    setcontext(&(((uthread *)curr->data)->ctx));
+//}
 
 void remove_thread_link(list_node *node) {
     if (node == curr_head) {
@@ -82,6 +82,7 @@ void thread_routine_wrapper(int higher_bits, int lower_bits) {
     thread->start_routine(thread->args);
     remove_thread_link(&thread->node);
     clean_up(thread);
+    setcontext(&(((uthread *)curr->data)->ctx));
 }
 
 int uthread_create(uthread_t *thread, start_routine_t start_routine, void *args) {
@@ -95,11 +96,11 @@ int uthread_create(uthread_t *thread, start_routine_t start_routine, void *args)
         curr_tail = &main_thread.node;
         main_thread.thread_id = thread_id_curr++;
 
-        getcontext(&reschedule);
-        reschedule.uc_stack.ss_sp = malloc(sizeof(char)*100);
-        reschedule.uc_stack.ss_size = 100;
-        reschedule.uc_link = NULL;
-        makecontext(&reschedule, reschedule_threads, 0);
+//        getcontext(&reschedule);
+//        reschedule.uc_stack.ss_sp = malloc(sizeof(char)*100);
+//        reschedule.uc_stack.ss_size = 100;
+//        reschedule.uc_link = NULL;
+//        makecontext(&reschedule, reschedule_threads, 0);
 
         curr = curr_head;
     }
@@ -134,7 +135,7 @@ int uthread_create(uthread_t *thread, start_routine_t start_routine, void *args)
     curr_tail->next = node_addr;
 
     curr_tail = node_addr;
-    new_thread->ctx.uc_link = &reschedule;
+    new_thread->ctx.uc_link = NULL;
 
     makecontext(&(new_thread->ctx), (void (*)()) thread_routine_wrapper, 2, higher, lower);
     *thread = new_thread;

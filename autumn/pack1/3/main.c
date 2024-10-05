@@ -4,7 +4,7 @@
 #include <unistd.h>
 
 void *thread_func(void *arg) {
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 2; i++) {
         printf("hello from uthread %d\n", *((int *) arg));
         sleep(1);
         yield();
@@ -21,7 +21,7 @@ int main() {
     uthread_create(&uthread1, thread_func, &thread_num1);
     uthread_create(&uthread2, thread_func, &thread_num2);
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 2; i++) {
         printf("hello from main thread\n");
         sleep(1);
         yield();
