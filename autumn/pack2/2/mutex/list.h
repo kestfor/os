@@ -16,5 +16,7 @@ typedef struct _list {
 list *list_init();
 void add(list *l, char *val);
 void clear(list *l);
+void lock(node *n);
+void unlock(node *n);
 
 #endif //PACK2_LIST_H

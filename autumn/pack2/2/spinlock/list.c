@@ -23,7 +23,7 @@ list* list_init() {
 
 void add(list *l, char *val) {
     node *new = malloc(sizeof(node));
-    pthread_mutex_init(&new->sync, NULL);
+    pthread_spin_init(&new->sync, 0);
     new->next = l->head;
     l->head = new;
 
@@ -33,8 +33,16 @@ void add(list *l, char *val) {
 void clear(list *l) {
     while (l->head != NULL) {
         node *next = l->head->next;
-        pthread_mutex_destroy(&l->head->sync);
+        pthread_spin_destroy(&l->head->sync);
         free(l->head);
         l->head = next;
     }
+}
+
+void lock(node *n) {
+    pthread_spin_lock(&(n->sync));
+}
+
+void unlock(node *n) {
+    pthread_spin_unlock(&(n->sync));
 }

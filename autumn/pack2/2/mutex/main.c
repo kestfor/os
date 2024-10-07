@@ -6,19 +6,9 @@
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
-#include <stdlib.h>// Initialization, should only be called once.
-#include <sys/time.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <linux/unistd.h>
-
-
-#include <stdio.h>
 #include <pthread.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 int first_counter = 0;
 int second_counter = 0;
@@ -32,21 +22,21 @@ void *first_thread(void *arg) {
     while (true) {
         int c = 0;
         node *curr = l->head;
-        pthread_mutex_lock(&(curr->sync));
+        lock(curr);
         node *next = curr->next;
         while (next != NULL) {
 
-            pthread_mutex_lock(&(next->sync));
+            lock(next);
 
             if (strlen(curr->value) < strlen(next->value)) {
                 c++;
             }
 
-            pthread_mutex_unlock(&(curr->sync));
+            unlock(curr);
             curr = next;
             next = curr->next;
         }
-        pthread_mutex_unlock(&(curr->sync));
+        unlock(curr);
         first_counter++;
     }
 }
@@ -56,21 +46,21 @@ void *second_thread(void *arg) {
     while (true) {
         int c = 0;
         node *curr = l->head;
-        pthread_mutex_lock(&(curr->sync));
+        lock(curr);
         node *next = curr->next;
         while (next != NULL) {
 
-            pthread_mutex_lock(&(next->sync));
+            lock(next);
 
             if (strlen(curr->value) > strlen(next->value)) {
                 c++;
             }
 
-            pthread_mutex_unlock(&(curr->sync));
+            unlock(curr);
             curr = next;
             next = curr->next;
         }
-        pthread_mutex_unlock(&(curr->sync));
+        unlock(curr);
         second_counter++;
     }
 }
@@ -82,30 +72,26 @@ void *third_thread(void *arg) {
         int c = 0;
         node *curr = l->head;
         //printf("try lock %p, %d\n", curr, thread_id);
-        if (pthread_mutex_lock(&(curr->sync)) != 0)  {
-            printf("lock failed");
-        }
+        lock(curr);
 
         //printf("locked %p, %d\n", curr, thread_id);
         node *next = curr->next;
         while (next != NULL) {
 
 //            printf("try lock %p, %d\n", next, thread_id);
-            if (pthread_mutex_lock(&(next->sync)) != 0) {
-                printf("lock failed");
-            }
+            lock(next);
             //printf("locked %p, %d\n", next, thread_id);
 
             if (strlen(curr->value) == strlen(next->value)) {
                 c++;
             }
 
-            pthread_mutex_unlock(&(curr->sync));
+            unlock(curr);
             //printf("unlocked %p, %d\n", curr, thread_id);
             curr = next;
             next = curr->next;
         }
-        pthread_mutex_unlock(&(curr->sync));
+        unlock(curr);
         //printf("unlocked %p, %d\n", curr, thread_id);
         third_counter++;
     }
@@ -127,22 +113,18 @@ void print_list(list *l) {
 
 void *fourth_thread(void *arg) {
     list *l = (list *) arg;
-    int thread_id = gettid();
+    //int thread_id = gettid();
     while (true) {
         node *prev = NULL;
         node *curr = l->head;
         //printf("[perm] try lock %p, %d\n", curr, thread_id);
-        if (pthread_mutex_lock(&(curr->sync)) != 0) {
-            printf("lock failed");
-        }
+        lock(curr);
 //        printf("[perm] locked %p, %d\n", l->head, thread_id);
         node *next = curr->next;
         while (next != NULL) {
 
 //            printf("[perm] try lock %p, %d\n", next, thread_id);
-            if (pthread_mutex_lock(&(next->sync)) != 0) {
-                printf("lock failed");
-            }
+            lock(next);
 //            printf("[perm] locked %p, %d\n", next, thread_id);
 
             if (is_perm_need()) {
@@ -169,7 +151,7 @@ void *fourth_thread(void *arg) {
 
             }
             if (prev != NULL) {
-                pthread_mutex_unlock(&(prev->sync));
+                unlock(prev);
 //                printf("[perm] unlocked %p, %d\n", prev, thread_id);
             }
 
@@ -181,10 +163,10 @@ void *fourth_thread(void *arg) {
         }
 //        printf("exited %p, %p, %p, %d\n", prev, curr, next, thread_id);
         if (prev != NULL) {
-            pthread_mutex_unlock(&(prev->sync));
+            unlock(prev);
   //          printf("[perm] unlocked %p, %d\n", prev, thread_id);
         }
-        pthread_mutex_unlock(&(curr->sync));
+        unlock(curr);
 //        printf("[perm] unlocked %p, %d\n", curr, thread_id);
     }
 }
@@ -194,8 +176,6 @@ int main() {
     char buff[100];
     list *l = list_init();
     for (int i = 0; i < 100; i++) {
-        buff[0] = 'a' + i;
-        buff[1] = '\000';
         add(l, buff);
     }
     pthread_t first, second, third;
