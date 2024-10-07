@@ -22,7 +22,6 @@ list* list_init() {
 }
 
 void add(list *l, char *val) {
-
     node *new = malloc(sizeof(node));
     pthread_mutex_init(&new->sync, NULL);
     new->next = l->head;
