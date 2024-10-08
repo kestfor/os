@@ -2,7 +2,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "../custom_mutex/list.h"
+#include "list.h"
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
@@ -175,7 +175,7 @@ int main() {
     srand(time(NULL));
     char buff[100];
     list *l = list_init();
-    for (int i = 0; i < 100000; i++) {
+    for (int i = 0; i < 100; i++) {
         add(l, buff);
     }
     pthread_t first, second, third;

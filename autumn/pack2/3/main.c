@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "mutex.h"
+#include "../2/custom_mutex/mutex.h"
 #include <pthread.h>
 
 
@@ -8,10 +8,10 @@ int counter_var = 0;
 
 void *counter() {
     for (int i = 0; i < 10000; i++) {
-        lock(&m);
+        lock_mutex(&m);
         fflush(stdout);
         counter_var++;
-        unlock(&m);
+        unlock_mutex(&m);
         fflush(stdout);
     }
     return NULL;
