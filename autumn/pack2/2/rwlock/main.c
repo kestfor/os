@@ -175,7 +175,7 @@ int main() {
     srand(time(NULL));
     char buff[100];
     list *l = list_init();
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 10000; i++) {
         add(l, buff);
     }
     pthread_t first, second, third;
@@ -190,10 +190,8 @@ int main() {
         pthread_create(&perm[i], NULL, fourth_thread, l);
     }
 
-    while (true) {
-        sleep(1);
-        printf("%d, %d, %d, %d\n", first_counter, second_counter, third_counter, fourth_counter);
-    }
+    sleep(2);
+    printf("%d, %d, %d, %d\n", first_counter, second_counter, third_counter, fourth_counter);
 
     clear(l);
 }
