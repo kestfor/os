@@ -148,6 +148,26 @@ void *read_data(void *args) {
     return NULL;
 }
 
+int send_data_from_channel(channel *ch, int client_socket) {
+    int offset = 0;
+    while (true) {
+        char buffer[BUFF_SIZE];
+        int read_num;
+        bool end = read_available(ch, buffer, offset, BUFF_SIZE, &read_num);
+        offset += read_num;
+        if (read_num > 0) {
+            if (ensure_write(client_socket, buffer, read_num) != 0) {
+                return -1;
+            }
+        } else if (!end) {
+            usleep(10000);
+        } else {
+            break;
+        }
+    }
+    return 0;
+}
+
 int send_cached_data(const int client_socket, const char *str_req, HashMap *cache) {
     http_request *request = create_request(str_req);
 
@@ -165,13 +185,15 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
 
     char *key = to_string(request);
     cached_data data;
-    bool ok = get_item(cache, key, &data);
+    bool ok = borrow_item(cache, key, &data);
     if (ok && ((clock() - data.cached_time)/CLOCKS_PER_SEC < TTL)) {
         printf("cache hit\n");
-        int data_size = get_size(data.data);
-        char data_to_send[data_size];
-        read_available(data.data, data_to_send, 0, data_size, NULL);
-        ensure_write(client_socket, data_to_send, data_size);
+        send_data_from_channel(data.data, client_socket);
+        release_item(cache, key);
+//        int data_size = get_size(data.data);
+//        char data_to_send[data_size];
+//        read_available(data.data, data_to_send, 0, data_size, NULL);
+//        ensure_write(client_socket, data_to_send, data_size);
         return 0;
     }
     printf("cache miss\n");
@@ -182,7 +204,7 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     }
 
     insert_item(cache, key, NULL);
-    ok = get_item(cache, key, &data);
+    ok = borrow_item(cache, key, &data);
 
     if (!ok) {
         printf("error getting cached data");
@@ -196,21 +218,8 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
 
     pthread_create(&tid, NULL, read_data, &args);
 
-    int offset = 0;
-    while (true) {
-        char buffer[BUFF_SIZE];
-        int read_num;
-        bool end = read_available(ch, buffer, offset, BUFF_SIZE, &read_num);
-        offset += read_num;
-        if (read_num > 0) {
-            ensure_write(client_socket, buffer, read_num);
-        } else if (!end) {
-            usleep(10000);
-        } else {
-            break;
-        }
-    }
-
+    send_data_from_channel(data.data, client_socket);
+    release_item(cache, key);
     pthread_join(tid, NULL);
     close(destination_socket);
     clear_request(request);
@@ -233,11 +242,13 @@ void *handle_client(void *arg) {
     if (number_read == -1) {
         perror("read() failed");
         close(client_socket);
+        free(parsed);
         return NULL;
     }
 
     send_cached_data(client_socket, buff, parsed->cache);
     close(client_socket);
+    free(parsed);
     return NULL;
 }
 
@@ -270,12 +281,15 @@ void listen_and_accept(Server *server) {
             continue;
         }
 
-        handle_client_args args = {client_socket, server->cache};
-        pthread_create(&handle_thread, NULL, handle_client, (void *) &args);
+        handle_client_args *args = malloc(sizeof(handle_client_args));
+        args->client_socket = client_socket;
+        args->cache = server->cache;
+        pthread_create(&handle_thread, NULL, handle_client, args);
     }
 
 }
 
+//TODO clock -> time
 int main() {
     Server server;
     init_server(&server);

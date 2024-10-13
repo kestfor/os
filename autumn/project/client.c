@@ -12,8 +12,10 @@
 #include <strings.h>
 #include <bits/types/struct_timeval.h>
 #include <time.h>
+#include <pthread.h>
 
-int main(int argc, char** argv) {
+void *client_func(void *arg) {
+    int num = *(int *) arg;
     int client_socket;
     struct sockaddr_in server_addr;
 
@@ -54,8 +56,24 @@ int main(int argc, char** argv) {
         perror("read");
     }
 
-    printf("done in %ld", (clock() - start));
-    FILE *out = fopen("out.txt", "w");
+    char name[100];
+    snprintf(name, 100, "out%d.txt", num);
+    FILE *out = fopen(name, "w");
     fprintf(out, "%s", res);
-    return 0;
+    printf("thread %d done in %ld clocks\n", num, (clock() - start));
+    return NULL;
+}
+
+
+int main(int argc, char** argv) {
+    int num = 5;
+    int args[num];
+    pthread_t clients[num];
+    for (int i = 0; i < num; i++) {
+        args[i] = i;
+        pthread_create(&clients[i], NULL, client_func, &args[i]);
+    }
+    for (int i = 0; i < num; i++) {
+        pthread_join(clients[i], NULL);
+    }
 }

@@ -77,9 +77,9 @@ void insert_item(HashMap* hashmap, const char* key, const char *value) {
         while (temp) {
             if (strcmp(temp->key, key) == 0) {
                 temp->data = data;
+                pthread_rwlock_unlock(&hashmap->rwlock);
                 free(newNode->key);
                 free(newNode);
-                pthread_rwlock_unlock(&hashmap->rwlock);
                 return;
             }
             temp = temp->next;
@@ -106,6 +106,27 @@ bool get_item(HashMap* hashmap, const char* key, cached_data *data) {
     }
     pthread_rwlock_unlock(&hashmap->rwlock);
     return false;
+}
+
+bool borrow_item(HashMap* hashmap, const char* key, cached_data *data) {
+    unsigned int index = hash(key);
+
+    pthread_rwlock_rdlock(&hashmap->rwlock);
+    HashNode* node = hashmap->table[index];
+
+    while (node) {
+        if (strcmp(node->key, key) == 0) {
+            memcpy(data, &node->data, sizeof(cached_data));
+            return true;
+        }
+        node = node->next;
+    }
+    pthread_rwlock_unlock(&hashmap->rwlock);
+    return false;
+}
+
+void release_item(HashMap* hashmap, const char* key) {
+    pthread_rwlock_unlock(&hashmap->rwlock);
 }
 
 void delete_item(HashMap* hashmap, const char* key) {
