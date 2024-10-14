@@ -59,7 +59,7 @@ void insert_item(HashMap* hashmap, const char* key, const char *value) {
     unsigned int index = hash(key);
 
     channel *new_ch = new_channel();
-    cached_data data = {clock(), new_ch};
+    cached_data data = {time(NULL), new_ch};
     if (value != NULL) {
         write_to_channel(new_ch, value, strlen(value));
     }
@@ -108,7 +108,7 @@ bool get_item(HashMap* hashmap, const char* key, cached_data *data) {
     return false;
 }
 
-bool borrow_item(HashMap* hashmap, const char* key, cached_data *data) {
+bool capture_item(HashMap* hashmap, const char* key, cached_data *data) {
     unsigned int index = hash(key);
 
     pthread_rwlock_rdlock(&hashmap->rwlock);
@@ -153,7 +153,7 @@ void delete_item(HashMap* hashmap, const char* key) {
     pthread_rwlock_unlock(&hashmap->rwlock);
 }
 
-void clear_old(HashMap *hashmap, clock_t last_time) {
+void clear_old(HashMap *hashmap, time_t last_time) {
     pthread_rwlock_wrlock(&hashmap->rwlock);
     for (int i = 0; i < TABLE_SIZE; i++) {
         HashNode* node = hashmap->table[i];

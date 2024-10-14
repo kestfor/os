@@ -13,12 +13,12 @@
 
 const int PORT = 80;
 const int BUFF_SIZE = 4096;
-const int TTL = 300; //seconds
+const int TTL = 300;
 
 typedef struct Server {
     int socket_fd;
     HashMap *cache;
-    clock_t last_clean_time;
+    time_t last_clean_time;
 } Server;
 
 void close_server(Server *server) {
@@ -30,7 +30,7 @@ void *cleanup(void *args) {
     Server *s = args;
     while (true) {
         s->last_clean_time = clock();
-        clear_old(s->cache, s->last_clean_time - TTL * CLOCKS_PER_SEC);
+        clear_old(s->cache, s->last_clean_time - TTL);
         sleep(TTL);
     }
 }
@@ -114,7 +114,7 @@ int ensure_write(int dest, char *data, size_t num) {
 
 int send_request(int socket, http_request *req) {
     char *str_req = to_string(req);
-    int len = strlen(str_req);
+    size_t len = strlen(str_req);
     if (ensure_write(socket, str_req, len) == 0) {
         free(str_req);
         return 0;
@@ -185,15 +185,11 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
 
     char *key = to_string(request);
     cached_data data;
-    bool ok = borrow_item(cache, key, &data);
-    if (ok && ((clock() - data.cached_time)/CLOCKS_PER_SEC < TTL)) {
+    bool ok = capture_item(cache, key, &data);
+    if (ok && ((time(NULL) - data.cached_time) < TTL)) {
         printf("cache hit\n");
         send_data_from_channel(data.data, client_socket);
         release_item(cache, key);
-//        int data_size = get_size(data.data);
-//        char data_to_send[data_size];
-//        read_available(data.data, data_to_send, 0, data_size, NULL);
-//        ensure_write(client_socket, data_to_send, data_size);
         return 0;
     }
     printf("cache miss\n");
@@ -204,7 +200,7 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     }
 
     insert_item(cache, key, NULL);
-    ok = borrow_item(cache, key, &data);
+    ok = capture_item(cache, key, &data);
 
     if (!ok) {
         printf("error getting cached data");
@@ -291,6 +287,7 @@ void listen_and_accept(Server *server) {
 
 //TODO clock -> time
 int main() {
+
     Server server;
     init_server(&server);
     listen_and_accept(&server);

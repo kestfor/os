@@ -46,7 +46,7 @@ void *client_func(void *arg) {
     char res[10000];
     memset(res, 0, 10000);
     char *start_pt = res;
-    clock_t start = clock();
+    time_t start = time(NULL);
     int num_read;
     while ((num_read = read(client_socket, start_pt, 10000)) > 0) {
         start_pt += num_read;
@@ -57,16 +57,16 @@ void *client_func(void *arg) {
     }
 
     char name[100];
-    snprintf(name, 100, "out%d.txt", num);
+    snprintf(name, 100, "data/out%d.txt", num);
     FILE *out = fopen(name, "w");
     fprintf(out, "%s", res);
-    printf("thread %d done in %ld clocks\n", num, (clock() - start));
+    printf("thread %d done in %ld \n", num, (time(NULL) - start));
     return NULL;
 }
 
 
 int main(int argc, char** argv) {
-    int num = 5;
+    int num = 50;
     int args[num];
     pthread_t clients[num];
     for (int i = 0; i < num; i++) {
