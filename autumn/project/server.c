@@ -47,7 +47,7 @@ void init_server(Server *server) {
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
-    bzero(&(server_addr.sin_zero),8);
+    bzero(&(server_addr.sin_zero), 8);
 
     int err = bind(server->socket_fd, (struct sockaddr *) &server_addr, sizeof(server_addr));
 
@@ -65,7 +65,7 @@ void init_server(Server *server) {
 int get_requested_socket_connection(char *hostname) {
     struct sockaddr_in sockaddr_in;
     struct timeval timeout;
-    timeout.tv_sec  = 3;  // after 3 seconds connect() will timeout
+    timeout.tv_sec = 3;  // after 3 seconds connect() will timeout
     timeout.tv_usec = 0;
 
     int socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -79,8 +79,8 @@ int get_requested_socket_connection(char *hostname) {
         fprintf(stderr, "error: gethostbyname(\"%s\")\n", hostname);
         return -1;
     }
-    in_addr_t in_addr = inet_addr(inet_ntoa(*(struct in_addr*)*(hostent->h_addr_list)));
-    if (in_addr == (in_addr_t)(-1)) {
+    in_addr_t in_addr = inet_addr(inet_ntoa(*(struct in_addr *) *(hostent->h_addr_list)));
+    if (in_addr == (in_addr_t) (-1)) {
         fprintf(stderr, "error: inet_addr(\"%s\")\n", *(hostent->h_addr_list));
         return -1;
     }
@@ -90,7 +90,7 @@ int get_requested_socket_connection(char *hostname) {
 
     setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
-    if (connect(socket_fd, (struct sockaddr*)&sockaddr_in, sizeof(sockaddr_in)) == -1) {
+    if (connect(socket_fd, (struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in)) == -1) {
         perror("connect");
         return -1;
     }
@@ -225,7 +225,7 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
 typedef struct handle_client_args {
     int client_socket;
     HashMap *cache;
-} handle_client_args ;
+} handle_client_args;
 
 void *handle_client(void *arg) {
     handle_client_args *parsed = arg;
@@ -285,7 +285,6 @@ void listen_and_accept(Server *server) {
 
 }
 
-//TODO clock -> time
 int main() {
 
     Server server;
