@@ -29,7 +29,7 @@ void close_server(Server *server) {
 void *cleanup(void *args) {
     Server *s = args;
     while (true) {
-        s->last_clean_time = clock();
+        s->last_clean_time = time(NULL);
         clear_old(s->cache, s->last_clean_time - TTL);
         sleep(TTL);
     }
