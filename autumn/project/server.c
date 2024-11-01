@@ -160,6 +160,7 @@ int send_data_from_channel(channel *ch, int client_socket) {
                 return -1;
             }
         } else if (!end) {
+            printf("sleep\n");
             usleep(10000);
         } else {
             break;
@@ -175,7 +176,26 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
         return -1;
     }
 
+    char *key = to_string(request);
+    cached_data data;
+    time_t start = time(NULL);
+    bool ok = capture_item(cache, key, &data);
+    printf("cache checked in %ld\n", time(NULL) - start);
+    if (ok && ((time(NULL) - data.cached_time) < TTL)) {
+        printf("cache hit, sending data...\n");
+        start = time(NULL);
+        send_data_from_channel(data.data, client_socket);
+        release_item(cache, key);
+        printf("sending from channel done in %ld\n", time(NULL) - start);
+        return 0;
+    }
+    start = time(NULL);
+    insert_item(cache, key, NULL);
+    printf("insert to cache done in %ld\n", time(NULL) - start);
+    printf("cache miss, connecting to host...\n");
+
     int destination_socket = get_requested_socket_connection(request->hostname);
+
 
     if (destination_socket == -1) {
         printf("error establishing connection to server\n");
@@ -183,25 +203,16 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
         return -1;
     }
 
-    char *key = to_string(request);
-    cached_data data;
-    bool ok = capture_item(cache, key, &data);
-    if (ok && ((time(NULL) - data.cached_time) < TTL)) {
-        printf("cache hit\n");
-        send_data_from_channel(data.data, client_socket);
-        release_item(cache, key);
-        return 0;
-    }
-    printf("cache miss\n");
+    printf("got host connection, sending data...\n");
+
     if (send_request(destination_socket, request) != 0) {
         clear_request(request);
         close(destination_socket);
         return -1;
     }
-
-    insert_item(cache, key, NULL);
+    start = time(NULL);
     ok = capture_item(cache, key, &data);
-
+    printf("cache checked in %ld\n", time(NULL) - start);
     if (!ok) {
         printf("error getting cached data");
         return -1;
@@ -214,8 +225,10 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
 
     pthread_create(&tid, NULL, read_data, &args);
 
+    start = time(NULL);
     send_data_from_channel(data.data, client_socket);
     release_item(cache, key);
+    printf("sending from channel done in %ld\n", time(NULL) - start);
     pthread_join(tid, NULL);
     close(destination_socket);
     clear_request(request);
@@ -242,14 +255,16 @@ void *handle_client(void *arg) {
         return NULL;
     }
 
+    time_t s = time(NULL);
     send_cached_data(client_socket, buff, parsed->cache);
     close(client_socket);
+    printf("client handled in %ld\n", time(NULL) - s);
     free(parsed);
     return NULL;
 }
 
 void listen_and_accept(Server *server) {
-    int err = listen(server->socket_fd, 5);
+    int err = listen(server->socket_fd, 100);
 
     pthread_t clean;
     pthread_attr_t attr;
@@ -270,8 +285,10 @@ void listen_and_accept(Server *server) {
     while (true) {
 
         unsigned int len;
+        printf("waiting for connection\n");
+        fflush(stdout);
         int client_socket = accept(server->socket_fd, (struct sockaddr *) &client_addr, &len);
-
+        printf("got new client\n");
         if (client_socket == -1) {
             perror("accept() failed");
             continue;

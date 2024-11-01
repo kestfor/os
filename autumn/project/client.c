@@ -38,7 +38,7 @@ void *client_func(void *arg) {
         close(client_socket);
         exit(1);
     }
-    char *request = "GET http://yandex.ru/ HTTP/1.0\r\nHost: yandex.ru\r\nConnection: close\r\n\r\n";
+    char *request = "GET http://ya.ru/ HTTP/1.0\r\nHost: ya.ru\r\nConnection: close\r\n\r\n";
     if (write(client_socket, request, 100) == -1) {
         perror("write");
     }
@@ -56,17 +56,17 @@ void *client_func(void *arg) {
         perror("read");
     }
 
-    char name[100];
-    snprintf(name, 100, "data/out%d.txt", num);
-    FILE *out = fopen(name, "w");
-    fprintf(out, "%s", res);
+//    char name[100];
+//    snprintf(name, 100, "data/out%d.txt", num);
+//    FILE *out = fopen(name, "w");
+//    fprintf(out, "%s", res);
     printf("thread %d done in %ld \n", num, (time(NULL) - start));
     return NULL;
 }
 
 
 int main(int argc, char** argv) {
-    int num = 50;
+    int num = 1000;
     int args[num];
     pthread_t clients[num];
     for (int i = 0; i < num; i++) {
