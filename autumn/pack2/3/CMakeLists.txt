@@ -4,4 +4,4 @@ project(pack2)
 SET(CMAKE_C_STANDARD 17)
 
 
-add_executable(main.o main.c ../2/custom_mutex/mutex.c ../2/custom_mutex/mutex.h)
+add_executable(main.o main.c mutex.h mutex.c)

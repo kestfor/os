@@ -23,13 +23,36 @@ void *counter() {
     return NULL;
 }
 
-int main() {
-    mutex_init(&m, ERROR_CHECKING);
-    pthread_t first, second;
-    pthread_create(&first, NULL, counter, NULL);
-    pthread_create(&second, NULL, counter, NULL);
+void *func1() {
+    int err = lock_mutex(&m);
+    err = lock_mutex(&m);
+    printf("%d\n", err);
+    return NULL;
+}
 
-    pthread_join(first, NULL);
-    pthread_join(second, NULL);
-    printf("%d", counter_var);
+void *func2() {
+    sleep(1);
+    int err = unlock_mutex(&m);
+    printf("%d\n", err);
+    return NULL;
+}
+
+int main() {
+    mutex_init(&m, RECURSIVE);
+    int err;
+    err = lock_mutex(&m);
+    printf("err: %d\n", err);
+    err = lock_mutex(&m);
+    printf("err: %d\n", err);
+    err = lock_mutex(&m);
+    printf("err: %d\n", err);
+
+
+//    pthread_t first, second;
+//    pthread_create(&first, NULL, func1, NULL);
+//    pthread_create(&second, NULL, func2, NULL);
+//
+//    pthread_join(first, NULL);
+//    pthread_join(second, NULL);
+//    printf("%d", counter_var);
 }
