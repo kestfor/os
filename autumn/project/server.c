@@ -30,7 +30,9 @@ void *cleanup(void *args) {
     Server *s = args;
     while (true) {
         s->last_clean_time = time(NULL);
+        printf("performing cleaning\n");
         clear_old(s->cache, s->last_clean_time - TTL);
+        printf("cleaning done\n");
         sleep(TTL);
     }
 }
@@ -156,11 +158,11 @@ int send_data_from_channel(channel *ch, int client_socket) {
         bool end = read_available(ch, buffer, offset, BUFF_SIZE, &read_num);
         offset += read_num;
         if (read_num > 0) {
-            if (ensure_write(client_socket, buffer, read_num) != 0) {
+            if (write(client_socket, buffer, read_num) < 0) {
                 return -1;
             }
         } else if (!end) {
-            printf("sleep\n");
+            //printf("sleep\n");
             usleep(10000);
         } else {
             break;
@@ -182,20 +184,24 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     bool ok = capture_item(cache, key, &data);
     printf("cache checked in %ld\n", time(NULL) - start);
     if (ok && ((time(NULL) - data.cached_time) < TTL)) {
+        // cache hit
         printf("cache hit, sending data...\n");
         start = time(NULL);
         send_data_from_channel(data.data, client_socket);
         release_item(cache, key);
         printf("sending from channel done in %ld\n", time(NULL) - start);
         return 0;
+    } else if (ok) {
+        // cache hit, but data outdated
+        release_item(cache, key);
     }
+
     start = time(NULL);
-    insert_item(cache, key, NULL);
-    printf("insert to cache done in %ld\n", time(NULL) - start);
     printf("cache miss, connecting to host...\n");
 
     int destination_socket = get_requested_socket_connection(request->hostname);
-
+    printf("got host connection\n");
+    fflush(stdout);
 
     if (destination_socket == -1) {
         printf("error establishing connection to server\n");
@@ -203,16 +209,16 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
         return -1;
     }
 
-    printf("got host connection, sending data...\n");
+    insert_item(cache, key, NULL);
+    printf("insert to cache done in %ld\n", time(NULL) - start);
+    fflush(stdout);
 
     if (send_request(destination_socket, request) != 0) {
         clear_request(request);
         close(destination_socket);
         return -1;
     }
-    start = time(NULL);
     ok = capture_item(cache, key, &data);
-    printf("cache checked in %ld\n", time(NULL) - start);
     if (!ok) {
         printf("error getting cached data");
         return -1;
@@ -223,8 +229,10 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     pthread_t tid;
     read_data_args args = {destination_socket, ch};
 
+
     pthread_create(&tid, NULL, read_data, &args);
 
+    printf("starting sending data from channel\n");
     start = time(NULL);
     send_data_from_channel(data.data, client_socket);
     release_item(cache, key);

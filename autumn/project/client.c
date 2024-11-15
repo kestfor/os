@@ -1,4 +1,5 @@
 #define _XOPEN_SOURCE 700
+
 #include <arpa/inet.h>
 #include <assert.h>
 #include <netdb.h> /* getprotobyname */
@@ -38,35 +39,41 @@ void *client_func(void *arg) {
         close(client_socket);
         exit(1);
     }
-    char *request = "GET http://ya.ru/ HTTP/1.0\r\nHost: ya.ru\r\nConnection: close\r\n\r\n";
-    if (write(client_socket, request, 100) == -1) {
+
+    char *filename = "file";
+    char request[8096];
+    memset(request, 0, 8096);
+    snprintf(request, 8096,
+             "GET http://192.168.56.1/file?filename=%s HTTP/1.0\r\nHost: 192.168.56.1\r\nConnection: close\r\n\r\n",
+             filename);
+
+    if (write(client_socket, request, strlen(request)) == -1) {
         perror("write");
     }
 
-    char res[10000];
-    memset(res, 0, 10000);
-    char *start_pt = res;
+
+    int BUFF_SIZE = 8096;
+    char buff[BUFF_SIZE + 1];
     time_t start = time(NULL);
+
+    int total_read = 0;
+    int total_write = 0;
     int num_read;
-    while ((num_read = read(client_socket, start_pt, 10000)) > 0) {
-        start_pt += num_read;
+    while ((num_read = read(client_socket, buff, BUFF_SIZE)) > 0) {
+        total_read += num_read;
     }
 
     if (num_read == -1) {
         perror("read");
     }
-
-//    char name[100];
-//    snprintf(name, 100, "data/out%d.txt", num);
-//    FILE *out = fopen(name, "w");
-//    fprintf(out, "%s", res);
-    printf("thread %d done in %ld \n", num, (time(NULL) - start));
+    printf("thread %d done in %ld, read %d bytes, written: %d bytes\n", num, (time(NULL) - start), total_read,
+           total_write);
     return NULL;
 }
 
 
-int main(int argc, char** argv) {
-    int num = 1000;
+int main(int argc, char **argv) {
+    int num = 100;
     int args[num];
     pthread_t clients[num];
     for (int i = 0; i < num; i++) {

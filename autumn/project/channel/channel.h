@@ -14,6 +14,6 @@ void set_whole(channel *ch);
 int add_to_channel(channel *ch, const char *data, size_t size);
 int write_to_channel(channel *ch, const char *data, size_t size);
 bool is_whole(channel *ch);
-size_t read_available(channel *ch, char *dest, int offset, int size, int *actual_read_num);
+bool read_available(channel *ch, char *dest, int offset, int size, int *actual_read_num);
 
 #endif //PROXY_CHANNEL_H

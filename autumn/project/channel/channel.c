@@ -91,7 +91,7 @@ void empty_channel(channel *ch) {
     pthread_rwlock_unlock(&ch->rwlock);
 }
 
-size_t read_available(channel *ch, char *dest, int offset, int size, int *actual_read_num) {
+bool read_available(channel *ch, char *dest, int offset, int size, int *actual_read_num) {
     pthread_rwlock_rdlock(&ch->rwlock);
     if (offset > ch->actual_len) {
         return 0;
