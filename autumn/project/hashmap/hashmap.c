@@ -53,17 +53,18 @@ HashMap *create_hashmap() {
 
 void clear_node(HashNode *node) {
     free(node->key);
-    clear_channel(node->data.data);
+    channel_clear(node->data.data);
     free(node);
 }
 
+// hashmap must be locked before
 void free_space_for_item(HashMap *hashmap) {
     HashNode *oldest = NULL;
     int table_ind = -1;
     int ttl = 300;
     time_t oldest_time = time(NULL);
     time_t last_time = oldest_time - ttl;
-    pthread_rwlock_wrlock(&hashmap->rwlock);
+    //pthread_rwlock_wrlock(&hashmap->rwlock);
     int old_size = hashmap->size;
     for (int i = 0; i < TABLE_SIZE; i++) {
         HashNode *node = hashmap->table[i];
@@ -78,6 +79,7 @@ void free_space_for_item(HashMap *hashmap) {
                 }
             } else if (temp->data.cached_time <= oldest_time) {
                 oldest = temp;
+                oldest_time = temp->data.cached_time;
                 if (hashmap->table[i] == temp) {
                     table_ind = i;
                 }
@@ -92,16 +94,16 @@ void free_space_for_item(HashMap *hashmap) {
             hashmap->table[table_ind] = node;
         }
     }
-    pthread_rwlock_unlock(&hashmap->rwlock);
+    //pthread_rwlock_unlock(&hashmap->rwlock);
 }
 
 void insert_item(HashMap *hashmap, const char *key, const char *value) {
     unsigned int index = hash(key);
 
-    channel *new_ch = new_channel();
+    channel *new_ch = channel_create();
     cached_data data = {time(NULL), new_ch};
     if (value != NULL) {
-        write_to_channel(new_ch, value, strlen(value));
+        channel_write(new_ch, value, strlen(value));
     }
 
     HashNode *newNode = malloc(sizeof(HashNode));
@@ -126,9 +128,7 @@ void insert_item(HashMap *hashmap, const char *key, const char *value) {
             temp = temp->next;
         }
         if (hashmap->size >= MAX_ITEM_NUM) {
-            pthread_rwlock_unlock(&hashmap->rwlock);
             free_space_for_item(hashmap);
-            pthread_rwlock_wrlock(&hashmap->rwlock);
         }
         newNode->next = hashmap->table[index];
         hashmap->table[index] = newNode;

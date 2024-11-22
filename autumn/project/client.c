@@ -41,16 +41,18 @@ void *client_func(void *arg) {
     }
 
     char *filename = "file";
+    char *host = "google.com";
     char request[8096];
     memset(request, 0, 8096);
     snprintf(request, 8096,
-             "GET http://192.168.56.1/file?filename=%s HTTP/1.0\r\nHost: 192.168.56.1\r\nConnection: close\r\n\r\n",
-             filename);
+             "GET http://%s/file?filename=%s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n",
+             host,
+             filename,
+             host);
 
     if (write(client_socket, request, strlen(request)) == -1) {
         perror("write");
     }
-
 
     int BUFF_SIZE = 8096;
     char buff[BUFF_SIZE + 1];
@@ -73,7 +75,7 @@ void *client_func(void *arg) {
 
 
 int main(int argc, char **argv) {
-    int num = 100;
+    int num = 10;
     int args[num];
     pthread_t clients[num];
     for (int i = 0; i < num; i++) {

@@ -6,14 +6,15 @@
 
 
 typedef struct channel channel;
-channel *new_channel();
-size_t get_size(channel *ch);
-void empty_channel(channel *ch);
-void clear_channel(channel *ch);
-void set_whole(channel *ch);
-int add_to_channel(channel *ch, const char *data, size_t size);
-int write_to_channel(channel *ch, const char *data, size_t size);
-bool is_whole(channel *ch);
-bool read_available(channel *ch, char *dest, int offset, int size, int *actual_read_num);
+channel *channel_create();
+size_t channel_get_size(channel *ch);
+void channel_set_empty(channel *ch);
+void channel_clear(channel *ch);
+void channel_set_whole(channel *ch);
+int channel_add(channel *ch, const char *data, size_t size);
+int channel_write(channel *ch, const char *data, size_t size);
+bool channel_is_whole(channel *ch);
+bool channel_read_available(channel *ch, char *dest, int offset, int size, int *actual_read_num);
+void channel_wait_for_data(channel *ch);
 
 #endif //PROXY_CHANNEL_H

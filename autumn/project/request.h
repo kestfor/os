@@ -2,9 +2,9 @@
 #define PROXY_REQUEST_H
 
 enum methods {
-    get = 0,
-    head = 1,
-    post = 2
+    get = 1,
+    head = 2,
+    post = 3
 };
 
 typedef struct http_request {
