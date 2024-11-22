@@ -8,21 +8,21 @@ HashMap *map;
 
 void *insert1() {
     for (int i =0; i<1000; i++) {
-        insert(map, "key1", "data1");
+        insert_item(map, "key1", "data1");
     }
     return NULL;
 }
 
 void *insert2() {
     for (int i =0; i<1000; i++) {
-        insert(map, "key2", "data2");
+        insert_item(map, "key2", "data2");
     }
     return NULL;
 }
 
 void *insert3() {
     for (int i =0; i<1000; i++) {
-        insert(map, "key3", "data3");
+        insert_item(map, "key3", "data3");
     }
     return NULL;
 }
@@ -37,7 +37,7 @@ int main() {
     pthread_create(&t3, NULL, insert3, NULL);
 
     cached_data val1;
-    bool ok =  get(map, "key1", &val1);
+    bool ok =  get_item(map, "key1", &val1);
     if (ok) {
         printf("value: %s\n", val1.data);
     }

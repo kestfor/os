@@ -28,7 +28,7 @@ async def test(url):
             if response.status == 200:
                 start = time.time()
                 total_read = 0
-                async for data in response.content.iter_chunked(1024):
+                async for data in response.content.iter_chunked(4096):
                     total_read += len(data)
                 print(f"got data in ({time.time() - start}s, total_size: {total_read} bytes)")
             else:

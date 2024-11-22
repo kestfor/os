@@ -161,9 +161,6 @@ int send_data_from_channel(channel *ch, int client_socket) {
                 return -1;
             }
         } else if (!end) {
-            printf("wait\n");
-            //usleep(10000);
-            fflush(stdout);
             channel_wait_for_data(ch);
         } else {
             break;
