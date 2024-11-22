@@ -252,56 +252,54 @@ typedef struct handle_client_args {
     HashMap *cache;
 } handle_client_args;
 
+
+char *read_request(int client_fd) {
+    char *buff = malloc(BUFF_SIZE);
+    if (buff == NULL) {
+        perror("malloc");
+        return NULL;
+    }
+
+    char *end = "\r\n\r\n";
+    size_t end_len = 4;
+
+    size_t buff_size = BUFF_SIZE;
+    size_t total_read = 0;
+    size_t number_read;
+    while ((number_read = read(client_fd, buff + total_read, BUFF_SIZE)) > 0) {
+        total_read += number_read;
+        if (buff_size == total_read) {
+            char *tmp = buff;
+            buff_size *= 2;
+            buff = realloc(buff, buff_size);
+            if (buff == NULL) {
+                perror("realloc");
+                free(tmp);
+                return NULL;
+            }
+        }
+
+        if (total_read > end_len && (strcmp(end, buff + total_read - 4) == 0)) {
+            break;
+        }
+
+    }
+    if (number_read == -1) {
+        perror("read() failed");
+        free(buff);
+        return NULL;
+    }
+    return buff;
+}
+
+
 void *handle_client(void *arg) {
     handle_client_args *parsed = arg;
     int client_socket = parsed->client_socket;
-
-//    char *buff = malloc(BUFF_SIZE);
-//    if (buff == NULL) {
-//        perror("malloc");
-//        close(client_socket);
-//        free(parsed);
-//        return NULL;
-//    }
-//    size_t buff_size = BUFF_SIZE;
-//    size_t total_read = 0;
-//    size_t number_read;
-//    printf("here");
-//    fflush(stdout);
-//    while ((number_read = read(client_socket, buff + total_read, BUFF_SIZE)) > 0) {
-//        total_read += number_read;
-//        //printf("total read: %d, number read: %d\n", total_read, number_read);
-//        if (buff_size == total_read) {
-//            char *tmp = buff;
-//            buff_size *= 2;
-//            buff = realloc(buff, buff_size);
-//            if (buff == NULL) {
-//                perror("realloc");
-//                close(client_socket);
-//                free(parsed);
-//                free(tmp);
-//                return NULL;
-//            }
-//        }
-//    }
-//
-//    if (number_read == -1) {
-//        perror("read() failed");
-//        close(client_socket);
-//        free(parsed);
-//        return NULL;
-//    }
-//
-//    printf("here2");
-//    fflush(stdout);
-    char buff[BUFF_SIZE];
-    memset(buff, 0, BUFF_SIZE);
-
-    size_t number_read = read(client_socket, buff, BUFF_SIZE);
-    if (number_read == -1) {
-        perror("read() failed");
-        close(client_socket);
+    char *buff = read_request(client_socket);
+    if (buff == NULL) {
         free(parsed);
+        close(client_socket);
         return NULL;
     }
 
@@ -310,7 +308,7 @@ void *handle_client(void *arg) {
     close(client_socket);
     printf("client handled in %ld\n", time(NULL) - s);
     free(parsed);
-    //free(buff);
+    free(buff);
     return NULL;
 }
 
