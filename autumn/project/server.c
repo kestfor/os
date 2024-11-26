@@ -21,7 +21,7 @@
 
 const int PORT = 80;
 const int BUFF_SIZE = 4096;
-const int TTL = 10;
+const int TTL = 300;
 volatile bool SHUTDOWN;
 
 typedef struct Server {
@@ -40,7 +40,7 @@ void *cleanup(void *args) {
     time_t time_step = TTL / 4;
     s->last_clean_time = time(NULL) - TTL;
     FILE *file = fopen("logs/cleaning.log", "w");
-    Logger *logger = logger_create(stdout, INFO);
+    Logger *logger = logger_create(file, INFO);
 
     uint64_t res;
     bool cleaned;
@@ -351,7 +351,7 @@ void *handle_client(void *arg) {
     char name[128];
     snprintf(name, 128, "logs/%d.log", tid);
     FILE *file = fopen(name, "w");
-    Logger *logger = logger_create(stdout, INFO);
+    Logger *logger = logger_create(file, INFO);
 
     char *buff = read_request(client_socket);
     if (buff == NULL) {
@@ -394,11 +394,13 @@ void listen_and_accept(Server *server) {
     pthread_t handle_thread;
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
+    Logger *mainLogger = logger_create(stdout, INFO);
+
     while (!SHUTDOWN) {
         unsigned int len;
         int client_socket = accept(server->socket_fd, (struct sockaddr *) &client_addr, &len);
         if (client_socket == -1) {
-            perror("accept() failed");
+            LOG(mainLogger, WARNING, "accept() failed", NULL);
             if (SHUTDOWN) {
                 break;
             }
@@ -408,20 +410,30 @@ void listen_and_accept(Server *server) {
         handle_client_args *args = malloc(sizeof(handle_client_args));
         args->client_socket = client_socket;
         args->cache = server->cache;
-        pthread_create(&handle_thread, NULL, handle_client, args);
+        int err = pthread_create(&handle_thread, NULL, handle_client, args);
+        if (err != 0) {
+            LOG(mainLogger, WARNING, "pthread_create failed, client wasn't handled", NULL);
+            close(client_socket);
+            free(args);
+        } else {
+            LOG(mainLogger, INFO, "new client connected", NULL);
+        }
+
     }
+    LOG(mainLogger, INFO, "shutting down application, waiting for cleaner", NULL);
+    logger_clear(mainLogger);
     pthread_exit(NULL);
 }
 
 static void handleSignal(int signal) {
-    SHUTDOWN=true;
+    SHUTDOWN = true;
 }
 
 static void registerSignal() {
     struct sigaction action;
     memset(&action, 0, sizeof(action));
-    action.sa_handler=handleSignal;
-    action.sa_flags=0;
+    action.sa_handler = handleSignal;
+    action.sa_flags = 0;
     sigaction(SIGINT, &action, NULL);
 }
 
