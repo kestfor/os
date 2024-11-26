@@ -74,7 +74,7 @@ void *client_func(void *arg) {
 
 
 int main(int argc, char **argv) {
-    int num = 1;
+    int num = 10;
     int args[num];
     pthread_t clients[num];
     for (int i = 0; i < num; i++) {

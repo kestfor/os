@@ -55,6 +55,10 @@ void clear_node(HashNode *node) {
     free(node);
 }
 
+void gc_add_item(GarbageCollector *gc, HashNode *node) {
+    gc->garbage[gc->size++] = node;
+}
+
 // real cleaning
 void gc_free_items(GarbageCollector *gc) {
     for (int i = 0; i < gc->size; i++) {
@@ -132,7 +136,6 @@ bool hashmap_gc_do_iter(HashMap *map, time_t oldest_time) {
             parent = temp;
         }
     }
-    printf("indexed checked from %d to %d\n", map->gc.last_checked_index, last_index);
     map->gc.last_checked_index = last_index;
     pthread_rwlock_unlock(&map->rwlock);
     return cleaned;
@@ -159,70 +162,15 @@ HashMap *create_hashmap() {
     return hashmap;
 }
 
-// hashmap must be locked before
-// void free_space_for_item(HashMap *hashmap) {
-//     HashNode *oldest = NULL;
-//     int table_ind = -1;
-//     int ttl = 300;
-//     time_t oldest_time = time(NULL);
-//     time_t last_time = oldest_time - ttl;
-//     //pthread_rwlock_wrlock(&hashmap->rwlock);
-//     int old_size = hashmap->size;
-//     for (int i = 0; i < TABLE_SIZE; i++) {
-//         HashNode *node = hashmap->table[i];
-//         while (node) {
-//             HashNode *temp = node;
-//             node = node->next;
-//             if (temp->data.cached_time < last_time) {
-//                 clear_node(temp);
-//                 hashmap->size--;
-//                 if (hashmap->table[i] == temp) {
-//                     hashmap->table[i] = node;
-//                 }
-//             } else if (temp->data.cached_time <= oldest_time) {
-//                 oldest = temp;
-//                 oldest_time = temp->data.cached_time;
-//                 if (hashmap->table[i] == temp) {
-//                     table_ind = i;
-//                 }
-//             }
-//         }
-//     }
-//     if (old_size == hashmap->size) {
-//         HashNode *node = oldest->next;
-//         clear_node(oldest);
-//         hashmap->size--;
-//         if (table_ind != -1) {
-//             hashmap->table[table_ind] = node;
-//         }
-//     }
-//     //pthread_rwlock_unlock(&hashmap->rwlock);
-// }
-
-void insert_item(HashMap *hashmap, const char *key, const char *value) {
-    unsigned int index = hash(key);
-
-    channel *new_ch = channel_create();
-    cached_data data = {time(NULL), new_ch};
-    if (value != NULL) {
-        channel_write(new_ch, value, strlen(value));
-    }
-
-    HashNode *newNode = malloc(sizeof(HashNode));
-    newNode->key = strdup(key);
-    newNode->data = data;
-    newNode->next = NULL;
-
-    pthread_rwlock_wrlock(&hashmap->rwlock);
+void _resolve_collision(HashMap *hashmap, HashNode *newNode, unsigned int index) {
     if (hashmap->table[index] == NULL) {
         hashmap->table[index] = newNode;
         hashmap->size++;
     } else {
         HashNode *temp = hashmap->table[index];
         while (temp) {
-            if (strcmp(temp->key, key) == 0) {
-                temp->data = data;
-                pthread_rwlock_unlock(&hashmap->rwlock);
+            if (strcmp(temp->key, newNode->key) == 0) {
+                temp->data = newNode->data;
                 free(newNode->key);
                 free(newNode);
                 return;
@@ -236,6 +184,35 @@ void insert_item(HashMap *hashmap, const char *key, const char *value) {
         hashmap->table[index] = newNode;
         hashmap->size++;
     }
+}
+
+HashNode *_create_new_node(const char *key, const char *value) {
+    channel *new_ch = channel_create();
+    cached_data data = {time(NULL), new_ch};
+    if (value != NULL) {
+        channel_write(new_ch, value, strlen(value));
+    }
+
+    HashNode *newNode = malloc(sizeof(HashNode));
+    newNode->key = strdup(key);
+    newNode->data = data;
+    newNode->next = NULL;
+    return newNode;
+}
+
+void insert_and_capture(HashMap *hashmap, const char *key, const char *value, cached_data *out) {
+    unsigned int index = hash(key);
+    HashNode *newNode = _create_new_node(key, value);
+    *out = newNode->data;
+    pthread_rwlock_wrlock(&hashmap->rwlock);
+    _resolve_collision(hashmap, newNode, index);
+}
+
+void insert_item(HashMap *hashmap, const char *key, const char *value) {
+    unsigned int index = hash(key);
+    HashNode *newNode = _create_new_node(key, value);
+    pthread_rwlock_wrlock(&hashmap->rwlock);
+    _resolve_collision(hashmap, newNode, index);
     pthread_rwlock_unlock(&hashmap->rwlock);
 }
 

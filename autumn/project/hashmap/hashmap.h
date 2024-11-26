@@ -1,5 +1,6 @@
 #ifndef PROXY_HASHMAP_H
 #define PROXY_HASHMAP_H
+
 #include <stddef.h>
 #include <time.h>
 #include <stdbool.h>
@@ -33,4 +34,7 @@ bool capture_item(HashMap *hashmap, const char *key, cached_data *data);
 void release_item(HashMap *hashmap, const char *key);
 
 bool hashmap_gc_do_iter(HashMap *hashmap, time_t oldest_time);
+
+void insert_and_capture(HashMap *hashMap, const char *key, const char *value, cached_data *out);
+
 #endif //PROXY_HASHMAP_H

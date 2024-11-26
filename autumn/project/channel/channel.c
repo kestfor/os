@@ -18,9 +18,9 @@ typedef struct channel {
 } channel;
 
 size_t channel_get_size(channel *ch) {
-    pthread_rwlock_wrlock(&ch->rwlock);
+    pthread_mutex_lock(&ch->cond_mutex);
     size_t len = ch->actual_len;
-    pthread_rwlock_unlock(&ch->rwlock);
+    pthread_mutex_unlock(&ch->cond_mutex);
     return len;
 }
 
@@ -30,7 +30,7 @@ size_t max(size_t first, size_t second) {
 
 channel *channel_create() {
     channel *ch = malloc(sizeof(channel));
-    pthread_rwlock_init(&ch->rwlock, NULL);
+    //pthread_rwlock_init(&ch->cond_mutex, NULL);
     ch->data = malloc(INITIAL_CAPACITY);
     ch->actual_len = 0;
     ch->capacity = INITIAL_CAPACITY;
@@ -42,27 +42,31 @@ channel *channel_create() {
 
 void channel_clear(channel *ch) {
     free(ch->data);
-    pthread_rwlock_destroy(&ch->rwlock);
+    //pthread_rwlock_destroy(&ch->cond_mutex);
     pthread_cond_destroy(&ch->cond_var);
     pthread_mutex_destroy(&ch->cond_mutex);
     free(ch);
 }
 
-void channel_wait_for_data(channel *ch) {
+void channel_wait_for_data(channel *ch, int offset) {
     pthread_mutex_lock(&ch->cond_mutex);
+    if (ch->actual_len > offset || ch->whole) {
+        pthread_mutex_unlock(&ch->cond_mutex);
+        return;
+    }
     pthread_cond_wait(&ch->cond_var, &ch->cond_mutex);
     pthread_mutex_unlock(&ch->cond_mutex);
 }
 
 
 void channel_set_whole(channel *ch) {
-    pthread_rwlock_wrlock(&ch->rwlock);
+    pthread_mutex_lock(&ch->cond_mutex);
     ch->whole = true;
-    pthread_rwlock_unlock(&ch->rwlock);
+    pthread_cond_broadcast(&ch->cond_var);
+    pthread_mutex_unlock(&ch->cond_mutex);
 }
 
-int channel_add(channel *ch, const char *data, size_t size) {
-    pthread_rwlock_wrlock(&ch->rwlock);
+int _add_inner(channel *ch, const char *data, size_t size) {
     ch->whole = false;
 
     if (size + ch->actual_len > ch->capacity) {
@@ -72,6 +76,7 @@ int channel_add(channel *ch, const char *data, size_t size) {
         if (ch->data == NULL) {
             free(tmp);
             perror("realloc");
+            pthread_mutex_unlock(&ch->cond_mutex);
             return -1;
         }
         ch->capacity = new_len;
@@ -79,39 +84,50 @@ int channel_add(channel *ch, const char *data, size_t size) {
 
     memcpy(ch->data + ch->actual_len, data, size);
     ch->actual_len += size;
-
-    pthread_cond_broadcast(&ch->cond_var);
-
-    pthread_rwlock_unlock(&ch->rwlock);
     return 0;
 }
 
+int channel_add(channel *ch, const char *data, size_t size) {
+    pthread_mutex_lock(&ch->cond_mutex);
+    _add_inner(ch, data, size);
+    pthread_mutex_unlock(&ch->cond_mutex);
+    pthread_cond_broadcast(&ch->cond_var);
+    return 0;
+}
+
+
 int channel_write(channel *ch, const char *data, size_t size) {
-    pthread_rwlock_wrlock(&ch->rwlock);
+    pthread_mutex_lock(&ch->cond_mutex);
     ch->actual_len = 0;
-    pthread_rwlock_unlock(&ch->rwlock);
-    return channel_add(ch, data, size);
+    int res = _add_inner(ch, data, size);
+    pthread_mutex_unlock(&ch->cond_mutex);
+    pthread_cond_broadcast(&ch->cond_var);
+    return res;
 }
 
 bool channel_is_whole(channel *ch) {
-    pthread_rwlock_rdlock(&ch->rwlock);
+    pthread_mutex_lock(&ch->cond_mutex);
     bool res = ch->whole;
-    pthread_rwlock_unlock(&ch->rwlock);
+    pthread_mutex_unlock(&ch->cond_mutex);
     return res;
 }
 
 void channel_set_empty(channel *ch) {
-    pthread_rwlock_rdlock(&ch->rwlock);
+    pthread_mutex_lock(&ch->cond_mutex);
     ch->actual_len = 0;
-    pthread_rwlock_unlock(&ch->rwlock);
+    pthread_mutex_unlock(&ch->cond_mutex);
 }
 
 bool channel_read_available(channel *ch, char *dest, int offset, int size, int *actual_read_num) {
-    pthread_rwlock_rdlock(&ch->rwlock);
-    if (offset > ch->actual_len) {
-        return 0;
-    }
+    pthread_mutex_lock(&ch->cond_mutex);
     bool end = ch->whole;
+    if (offset >= ch->actual_len) {
+        if (actual_read_num != NULL) {
+            *actual_read_num = 0;
+        }
+        pthread_mutex_unlock(&ch->cond_mutex);
+        return end;
+    }
     size_t read_num = 0;
     if (size < ch->actual_len - offset) {
         end = false;
@@ -120,7 +136,7 @@ bool channel_read_available(channel *ch, char *dest, int offset, int size, int *
         read_num = ch->actual_len - offset;
     }
     memcpy(dest, ch->data + offset, read_num);
-    pthread_rwlock_unlock(&ch->rwlock);
+    pthread_mutex_unlock(&ch->cond_mutex);
     if (actual_read_num != NULL) {
         *actual_read_num = read_num;
     }

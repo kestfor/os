@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <stdlib.h>
@@ -7,13 +9,19 @@
 #include <netdb.h>
 #include <pthread.h>
 #include <arpa/inet.h>
+#include <sys/procfs.h>
 #include "request.h"
 #include "hashmap/hashmap.h"
+#include "logger/logger.h"
 
+#define LOG(logger, level, format, ...) ({char msg[128]; snprintf(msg, 128, format, __VA_ARGS__); logger_message(logger, msg, level);})
+#define TIME_FROM_MS(from) ({struct timeval stop; gettimeofday(&stop, NULL); (stop.tv_sec - from.tv_sec) * 1000000 + stop.tv_usec - from.tv_usec;})
+#define BENCHMARK_START {struct timeval _start; gettimeofday(&_start, NULL);
+#define BENCHMARK_END(res) struct timeval _stop; gettimeofday(&_stop, NULL); res = (_stop.tv_sec - _start.tv_sec) * 1000000 + _stop.tv_usec - _start.tv_usec;}
 
 const int PORT = 80;
 const int BUFF_SIZE = 4096;
-const int TTL = 320;
+const int TTL = 10;
 
 typedef struct Server {
     int socket_fd;
@@ -68,7 +76,7 @@ void init_server(Server *server) {
     server->last_clean_time = 0;
 }
 
-int get_requested_socket_connection(char *hostname) {
+int get_requested_socket_connection(char *hostname, Logger *logger) {
     struct sockaddr_in sockaddr_in;
     struct timeval timeout;
     timeout.tv_sec = 3; // after 3 seconds connect() will timeout
@@ -82,12 +90,12 @@ int get_requested_socket_connection(char *hostname) {
 
     struct hostent *hostent = gethostbyname(hostname);
     if (hostent == NULL) {
-        fprintf(stderr, "error: gethostbyname(\"%s\")\n", hostname);
+        LOG(logger, ERROR, "error: gethostbyname(\"%s\")\n", hostname);
         return -1;
     }
     in_addr_t in_addr = inet_addr(inet_ntoa(*(struct in_addr *) *(hostent->h_addr_list)));
     if (in_addr == (in_addr_t) (-1)) {
-        fprintf(stderr, "error: inet_addr(\"%s\")\n", *(hostent->h_addr_list));
+        LOG(logger, ERROR, "error: inet_addr(\"%s\")\n", *(hostent->h_addr_list));
         return -1;
     }
     sockaddr_in.sin_addr.s_addr = in_addr;
@@ -154,7 +162,7 @@ void *read_data(void *args) {
     return NULL;
 }
 
-int send_data_from_channel(channel *ch, int client_socket) {
+int send_data_from_channel(channel *ch, int client_socket, Logger *logger) {
     int offset = 0;
     while (true) {
         char buffer[BUFF_SIZE];
@@ -163,10 +171,16 @@ int send_data_from_channel(channel *ch, int client_socket) {
         offset += read_num;
         if (read_num > 0) {
             if (write(client_socket, buffer, read_num) < 0) {
+                LOG(logger, ERROR, "write failed", NULL);
                 return -1;
             }
+
+            LOG(logger, INFO, "send %d bytes to client", read_num);
+
         } else if (!end) {
-            channel_wait_for_data(ch);
+            LOG(logger, INFO, "wait for data in channel", NULL);
+            channel_wait_for_data(ch, offset);
+            LOG(logger, INFO, "waked for data", NULL);
         } else {
             break;
         }
@@ -174,7 +188,7 @@ int send_data_from_channel(channel *ch, int client_socket) {
     return 0;
 }
 
-int send_cached_data(const int client_socket, const char *str_req, HashMap *cache) {
+int send_cached_data(const int client_socket, const char *str_req, HashMap *cache, Logger *logger) {
     http_request *request = create_request(str_req);
 
     if (request == NULL) {
@@ -183,46 +197,58 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
 
     char *key = to_string(request);
     cached_data data;
-    time_t start = time(NULL);
-    bool ok = capture_item(cache, key, &data);
-    printf("cache checked in %ld\n", time(NULL) - start);
+    bool ok;
+    uint64_t res;
+    BENCHMARK_START
+        ok = capture_item(cache, key, &data);
+    BENCHMARK_END(res)
+    LOG(logger, INFO, "cache checked in %ld ms", res);
+
     if (ok && ((time(NULL) - data.cached_time) < TTL)) {
         // cache hit
-        printf("cache hit, sending data...\n");
-        start = time(NULL);
-        send_data_from_channel(data.data, client_socket);
-        release_item(cache, key);
-        printf("sending from channel done in %ld\n", time(NULL) - start);
+        LOG(logger, INFO, "cache hit, sending data...", NULL);
+
+        BENCHMARK_START
+            send_data_from_channel(data.data, client_socket, logger);
+            release_item(cache, key);
+        BENCHMARK_END(res)
+
+        LOG(logger, INFO, "sending from channel done in %ld ms", res);
         return 0;
     } else if (ok) {
         // cache hit, but data outdated
         release_item(cache, key);
     }
 
-    start = time(NULL);
-    printf("cache miss, connecting to host...\n");
+    LOG(logger, INFO, "cache miss, connecting to host...", NULL);
 
-    int destination_socket = get_requested_socket_connection(request->hostname);
+    int destination_socket = get_requested_socket_connection(request->hostname, logger);
 
     if (destination_socket == -1) {
-        printf("error establishing connection to server\n");
+        LOG(logger, WARNING, "error establishing connection to server", NULL);
         clear_request(request);
         return -1;
     }
 
-    printf("got host connection\n");
+    LOG(logger, INFO, "got host connection", NULL);
+//    insert_and_capture(cache, key, NULL, &data);
 
-    insert_item(cache, key, NULL);
-    printf("insert to cache done in %ld\n", time(NULL) - start);
+    BENCHMARK_START
+        insert_item(cache, key, NULL);
+        ok = capture_item(cache, key, &data);
+    BENCHMARK_END(res)
+    if (!ok) {
+        LOG(logger, WARNING, "error capturing item", NULL);
+        close(destination_socket);
+        clear_request(request);
+        return -1;
+    }
+
+    LOG(logger, INFO, "insert to cache done in %ld ms", res);
 
     if (send_request(destination_socket, request) != 0) {
         clear_request(request);
         close(destination_socket);
-        return -1;
-    }
-    ok = capture_item(cache, key, &data);
-    if (!ok) {
-        printf("error getting cached data");
         return -1;
     }
 
@@ -241,12 +267,16 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
         return -1;
     }
 
-    printf("starting sending data from channel\n");
-    start = time(NULL);
-    send_data_from_channel(data.data, client_socket);
-    release_item(cache, key);
-    printf("sending from channel done in %ld\n", time(NULL) - start);
-    pthread_join(tid, NULL);
+    LOG(logger, INFO, "starting sending data from channel", NULL);
+
+    BENCHMARK_START
+        send_data_from_channel(data.data, client_socket, logger);
+        release_item(cache, key);
+        pthread_join(tid, NULL);
+    BENCHMARK_END(res)
+
+    LOG(logger, INFO, "sending from channel done in %ld ms", res);
+
     close(destination_socket);
     clear_request(request);
     return 0;
@@ -301,6 +331,13 @@ char *read_request(int client_fd) {
 void *handle_client(void *arg) {
     handle_client_args *parsed = arg;
     int client_socket = parsed->client_socket;
+
+    int tid = gettid();
+    char name[128];
+    snprintf(name, 128, "logs/%d.log", tid);
+    FILE *file = fopen(name, "w");
+    Logger *logger = logger_create(file, INFO);
+
     char *buff = read_request(client_socket);
     if (buff == NULL) {
         free(parsed);
@@ -308,12 +345,18 @@ void *handle_client(void *arg) {
         return NULL;
     }
 
-    time_t s = time(NULL);
-    send_cached_data(client_socket, buff, parsed->cache);
+    uint64_t res;
+    BENCHMARK_START
+        send_cached_data(client_socket, buff, parsed->cache, logger);
+    BENCHMARK_END(res)
+
+    LOG(logger, INFO, "client handled in %ld ms", res);
     close(client_socket);
-    printf("client handled in %ld\n", time(NULL) - s);
+
     free(parsed);
     free(buff);
+    logger_clear(logger);
+    fclose(file);
     return NULL;
 }
 
@@ -338,10 +381,7 @@ void listen_and_accept(Server *server) {
 
     while (true) {
         unsigned int len;
-        printf("waiting for connection\n");
-        fflush(stdout);
         int client_socket = accept(server->socket_fd, (struct sockaddr *) &client_addr, &len);
-        printf("got new client\n");
         if (client_socket == -1) {
             perror("accept() failed");
             continue;
