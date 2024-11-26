@@ -20,7 +20,7 @@
 
 const int PORT = 80;
 const int BUFF_SIZE = 4096;
-const int TTL = 10;
+const int TTL = 300;
 
 typedef struct Server {
     int socket_fd;
@@ -38,7 +38,7 @@ void *cleanup(void *args) {
     time_t time_step = TTL / 4;
     s->last_clean_time = time(NULL) - TTL;
     FILE *file = fopen("logs/cleaning.log", "w");
-    Logger *logger = logger_create(file, INFO);
+    Logger *logger = logger_create(stdout, INFO);
 
     uint64_t res;
     bool cleaned;
@@ -344,7 +344,7 @@ void *handle_client(void *arg) {
     char name[128];
     snprintf(name, 128, "logs/%d.log", tid);
     FILE *file = fopen(name, "w");
-    Logger *logger = logger_create(file, INFO);
+    Logger *logger = logger_create(stdout, INFO);
 
     char *buff = read_request(client_socket);
     if (buff == NULL) {
