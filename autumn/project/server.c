@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 #include <sys/procfs.h>
+#include <signal.h>
 #include "request.h"
 #include "hashmap/hashmap.h"
 #include "logger/logger.h"
@@ -20,7 +21,8 @@
 
 const int PORT = 80;
 const int BUFF_SIZE = 4096;
-const int TTL = 300;
+const int TTL = 10;
+volatile bool SHUTDOWN;
 
 typedef struct Server {
     int socket_fd;
@@ -42,20 +44,25 @@ void *cleanup(void *args) {
 
     uint64_t res;
     bool cleaned;
-    while (true) {
+    while (!SHUTDOWN) {
         sleep(time_step);
         BENCHMARK_START
             cleaned = hashmap_gc_do_iter(s->cache, s->last_clean_time);
-        BENCHMARK_END(res);
+        BENCHMARK_END(res)
         if (cleaned) {
             LOG(logger, INFO, "cache was cleaned in %ld ms", res);
         } else {
             LOG(logger, INFO, "lazy cleaning performed in %ld ms", res);
         }
         s->last_clean_time += time_step;
+        if (SHUTDOWN) {
+            break;
+        }
     }
     fclose(file);
     logger_clear(logger);
+    close_server(s);
+    pthread_exit(NULL);
 }
 
 void init_server(Server *server) {
@@ -387,11 +394,14 @@ void listen_and_accept(Server *server) {
     pthread_t handle_thread;
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-    while (true) {
+    while (!SHUTDOWN) {
         unsigned int len;
         int client_socket = accept(server->socket_fd, (struct sockaddr *) &client_addr, &len);
         if (client_socket == -1) {
             perror("accept() failed");
+            if (SHUTDOWN) {
+                break;
+            }
             continue;
         }
 
@@ -400,9 +410,24 @@ void listen_and_accept(Server *server) {
         args->cache = server->cache;
         pthread_create(&handle_thread, NULL, handle_client, args);
     }
+    pthread_exit(NULL);
 }
 
+static void handleSignal(int signal) {
+    SHUTDOWN=true;
+}
+
+static void registerSignal() {
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler=handleSignal;
+    action.sa_flags=0;
+    sigaction(SIGINT, &action, NULL);
+}
+
+
 int main() {
+    registerSignal();
     Server server;
     init_server(&server);
     listen_and_accept(&server);
