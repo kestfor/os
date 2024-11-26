@@ -15,7 +15,6 @@
 #include "logger/logger.h"
 
 #define LOG(logger, level, format, ...) ({char msg[128]; snprintf(msg, 128, format, __VA_ARGS__); logger_message(logger, msg, level);})
-#define TIME_FROM_MS(from) ({struct timeval stop; gettimeofday(&stop, NULL); (stop.tv_sec - from.tv_sec) * 1000000 + stop.tv_usec - from.tv_usec;})
 #define BENCHMARK_START {struct timeval _start; gettimeofday(&_start, NULL);
 #define BENCHMARK_END(res) struct timeval _stop; gettimeofday(&_stop, NULL); res = (_stop.tv_sec - _start.tv_sec) * 1000000 + _stop.tv_usec - _start.tv_usec;}
 
@@ -38,16 +37,25 @@ void *cleanup(void *args) {
     Server *s = args;
     time_t time_step = TTL / 4;
     s->last_clean_time = time(NULL) - TTL;
+    FILE *file = fopen("logs/cleaning.log", "w");
+    Logger *logger = logger_create(file, INFO);
+
+    uint64_t res;
+    bool cleaned;
     while (true) {
         sleep(time_step);
-        bool cleaned = hashmap_gc_do_iter(s->cache, s->last_clean_time);
-//        if (cleaned) {
-//            printf("cache was cleaned\n");
-//        } else {
-//            printf("lazy cleaning performed\n");
-//        }
+        BENCHMARK_START
+            cleaned = hashmap_gc_do_iter(s->cache, s->last_clean_time);
+        BENCHMARK_END(res);
+        if (cleaned) {
+            LOG(logger, INFO, "cache was cleaned in %ld ms", res);
+        } else {
+            LOG(logger, INFO, "lazy cleaning performed in %ld ms", res);
+        }
         s->last_clean_time += time_step;
     }
+    fclose(file);
+    logger_clear(logger);
 }
 
 void init_server(Server *server) {
