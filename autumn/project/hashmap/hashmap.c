@@ -112,10 +112,11 @@ bool hashmap_gc_do_iter(HashMap *map, time_t oldest_time) {
         cleaned = true;
         map->gc.last_checked_index = 0;
     }
-    pthread_rwlock_rdlock(&map->rwlock);
+    pthread_rwlock_wrlock(&map->rwlock);
 
     int last_index = min(map->gc.last_checked_index + (TABLE_SIZE / GC_ITER_NUM), TABLE_SIZE);
     for (int i = map->gc.last_checked_index; i < last_index; i++) {
+        HashNode *parent = NULL;
         HashNode *node = map->table[i];
         while (node) {
             HashNode *temp = node;
@@ -123,10 +124,14 @@ bool hashmap_gc_do_iter(HashMap *map, time_t oldest_time) {
             if (temp->data.cached_time < oldest_time) {
                 map->gc.garbage[map->gc.size++] = temp;
                 map->size--;
+                if (parent != NULL) {
+                    parent->next = node;
+                }
                 if (map->table[i] == temp) {
                     map->table[i] = node;
                 }
             }
+            parent = temp;
         }
     }
     printf("indexed checked from %d to %d\n", map->gc.last_checked_index, last_index);
