@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint-gcc.h>
@@ -6,9 +5,15 @@
 #include <stdbool.h>
 #include "hashmap.h"
 #include <pthread.h>
+#include <stdio.h>
 
 #define TABLE_SIZE 1000
 #define MAX_ITEM_NUM 100000
+#define GC_ITER_NUM 4
+
+int min(int a, int b) {
+    return a < b ? a : b;
+}
 
 typedef struct HashNode {
     char *key;
@@ -16,10 +21,19 @@ typedef struct HashNode {
     struct HashNode *next;
 } HashNode;
 
+typedef struct GarbageCollector {
+    int capacity;
+    int size;
+    int last_checked_index;
+    HashNode **garbage;
+} GarbageCollector;
+
+
 typedef struct HashMap {
     int size;
     pthread_rwlock_t rwlock;
     HashNode **table;
+    GarbageCollector gc;
 } HashMap;
 
 uint32_t fnv1a_hash(const char *str) {
@@ -35,6 +49,92 @@ uint32_t fnv1a_hash(const char *str) {
     return hash;
 }
 
+void clear_node(HashNode *node) {
+    free(node->key);
+    channel_clear(node->data.data);
+    free(node);
+}
+
+// real cleaning
+void gc_free_items(GarbageCollector *gc, pthread_rwlock_t *rwlock) {
+    pthread_rwlock_wrlock(rwlock);
+    for (int i = 0; i < gc->size; i++) {
+        clear_node(gc->garbage[i]);
+        gc->garbage[i] = NULL;
+        gc->size--;
+    }
+    pthread_rwlock_unlock(rwlock);
+}
+
+//inner function, must be locked before (readlock), appends items to gc to clean after
+void hashmap_gc_clear_oldest(HashMap *hashmap) {
+    HashNode *oldest = NULL;
+    HashNode *parent_of_oldest = NULL;
+    int table_ind = -1;
+    time_t oldest_time = time(NULL);
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        HashNode *node = hashmap->table[i];
+        HashNode *prev = NULL;
+        while (node) {
+            HashNode *temp = node;
+            node = node->next;
+            if (temp->data.cached_time <= oldest_time) {
+                oldest = temp;
+                parent_of_oldest = prev;
+                oldest_time = temp->data.cached_time;
+                if (hashmap->table[i] == temp) {
+                    table_ind = i;
+                }
+            }
+            prev = temp;
+        }
+    }
+    if (oldest != NULL) {
+        HashNode *node = oldest->next;
+        if (parent_of_oldest != NULL) {
+            parent_of_oldest->next = node;
+        }
+        hashmap->gc.garbage[hashmap->gc.size++] = oldest;
+        hashmap->size--;
+        if (table_ind != -1) {
+            hashmap->table[table_ind] = node;
+        }
+    }
+}
+
+// either appends items to gc or performs cleaning,
+// every call of function checks TABLE_SIZE / GC_ITER_NUM num of table_items, and perform cleaning if all table was checked
+bool hashmap_gc_do_iter(HashMap *map, time_t oldest_time) {
+    bool cleaned = false;
+    if (map->gc.last_checked_index == TABLE_SIZE) {
+        gc_free_items(&map->gc, &map->rwlock);
+        map->gc.last_checked_index = 0;
+        cleaned = true;
+        map->gc.last_checked_index = 0;
+    }
+    pthread_rwlock_rdlock(&map->rwlock);
+
+    int last_index = min(map->gc.last_checked_index + (TABLE_SIZE / GC_ITER_NUM), TABLE_SIZE);
+    for (int i = map->gc.last_checked_index; i < last_index; i++) {
+        HashNode *node = map->table[i];
+        while (node) {
+            HashNode *temp = node;
+            node = node->next;
+            if (temp->data.cached_time < oldest_time) {
+                map->gc.garbage[map->gc.size++] = temp;
+                map->size--;
+                if (map->table[i] == temp) {
+                    map->table[i] = node;
+                }
+            }
+        }
+    }
+    printf("indexed checked from %d to %d\n", map->gc.last_checked_index, last_index);
+    map->gc.last_checked_index = last_index;
+    pthread_rwlock_unlock(&map->rwlock);
+    return cleaned;
+}
+
 uint32_t hash(const char *key) {
     return fnv1a_hash(key) % TABLE_SIZE;
 }
@@ -44,6 +144,11 @@ HashMap *create_hashmap() {
     hashmap->table = malloc(TABLE_SIZE * sizeof(HashNode *));
     pthread_rwlock_init(&hashmap->rwlock, NULL);
 
+    hashmap->gc.capacity = MAX_ITEM_NUM;
+    hashmap->gc.size = 0;
+    hashmap->gc.last_checked_index = 0;
+    hashmap->gc.garbage = malloc(sizeof(HashNode *) * hashmap->gc.size);
+
     for (int i = 0; i < TABLE_SIZE; i++) {
         hashmap->table[i] = NULL;
     }
@@ -51,51 +156,45 @@ HashMap *create_hashmap() {
     return hashmap;
 }
 
-void clear_node(HashNode *node) {
-    free(node->key);
-    channel_clear(node->data.data);
-    free(node);
-}
-
 // hashmap must be locked before
-void free_space_for_item(HashMap *hashmap) {
-    HashNode *oldest = NULL;
-    int table_ind = -1;
-    int ttl = 300;
-    time_t oldest_time = time(NULL);
-    time_t last_time = oldest_time - ttl;
-    //pthread_rwlock_wrlock(&hashmap->rwlock);
-    int old_size = hashmap->size;
-    for (int i = 0; i < TABLE_SIZE; i++) {
-        HashNode *node = hashmap->table[i];
-        while (node) {
-            HashNode *temp = node;
-            node = node->next;
-            if (temp->data.cached_time < last_time) {
-                clear_node(temp);
-                hashmap->size--;
-                if (hashmap->table[i] == temp) {
-                    hashmap->table[i] = node;
-                }
-            } else if (temp->data.cached_time <= oldest_time) {
-                oldest = temp;
-                oldest_time = temp->data.cached_time;
-                if (hashmap->table[i] == temp) {
-                    table_ind = i;
-                }
-            }
-        }
-    }
-    if (old_size == hashmap->size) {
-        HashNode *node = oldest->next;
-        clear_node(oldest);
-        hashmap->size--;
-        if (table_ind != -1) {
-            hashmap->table[table_ind] = node;
-        }
-    }
-    //pthread_rwlock_unlock(&hashmap->rwlock);
-}
+// void free_space_for_item(HashMap *hashmap) {
+//     HashNode *oldest = NULL;
+//     int table_ind = -1;
+//     int ttl = 300;
+//     time_t oldest_time = time(NULL);
+//     time_t last_time = oldest_time - ttl;
+//     //pthread_rwlock_wrlock(&hashmap->rwlock);
+//     int old_size = hashmap->size;
+//     for (int i = 0; i < TABLE_SIZE; i++) {
+//         HashNode *node = hashmap->table[i];
+//         while (node) {
+//             HashNode *temp = node;
+//             node = node->next;
+//             if (temp->data.cached_time < last_time) {
+//                 clear_node(temp);
+//                 hashmap->size--;
+//                 if (hashmap->table[i] == temp) {
+//                     hashmap->table[i] = node;
+//                 }
+//             } else if (temp->data.cached_time <= oldest_time) {
+//                 oldest = temp;
+//                 oldest_time = temp->data.cached_time;
+//                 if (hashmap->table[i] == temp) {
+//                     table_ind = i;
+//                 }
+//             }
+//         }
+//     }
+//     if (old_size == hashmap->size) {
+//         HashNode *node = oldest->next;
+//         clear_node(oldest);
+//         hashmap->size--;
+//         if (table_ind != -1) {
+//             hashmap->table[table_ind] = node;
+//         }
+//     }
+//     //pthread_rwlock_unlock(&hashmap->rwlock);
+// }
 
 void insert_item(HashMap *hashmap, const char *key, const char *value) {
     unsigned int index = hash(key);
@@ -128,7 +227,7 @@ void insert_item(HashMap *hashmap, const char *key, const char *value) {
             temp = temp->next;
         }
         if (hashmap->size >= MAX_ITEM_NUM) {
-            free_space_for_item(hashmap);
+            hashmap_gc_clear_oldest(hashmap);
         }
         newNode->next = hashmap->table[index];
         hashmap->table[index] = newNode;
@@ -230,6 +329,7 @@ void free_hashmap(HashMap *hashmap) {
             clear_node(temp);
         }
     }
+    free(hashmap->gc.garbage);
     free(hashmap->table);
     pthread_rwlock_destroy(&hashmap->rwlock);
     free(hashmap);

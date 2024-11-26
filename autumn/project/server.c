@@ -13,7 +13,7 @@
 
 const int PORT = 80;
 const int BUFF_SIZE = 4096;
-const int TTL = 300;
+const int TTL = 320;
 
 typedef struct Server {
     int socket_fd;
@@ -28,12 +28,17 @@ void close_server(Server *server) {
 
 void *cleanup(void *args) {
     Server *s = args;
+    time_t time_step = TTL / 4;
+    s->last_clean_time = time(NULL) - TTL;
     while (true) {
-        s->last_clean_time = time(NULL);
-        printf("performing cleaning\n");
-        clear_old(s->cache, s->last_clean_time - TTL);
-        printf("cleaning done\n");
-        sleep(TTL);
+        sleep(time_step);
+        bool cleaned = hashmap_gc_do_iter(s->cache, s->last_clean_time);
+//        if (cleaned) {
+//            printf("cache was cleaned\n");
+//        } else {
+//            printf("lazy cleaning performed\n");
+//        }
+        s->last_clean_time += time_step;
     }
 }
 

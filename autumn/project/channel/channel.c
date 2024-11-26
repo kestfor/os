@@ -28,10 +28,6 @@ size_t max(size_t first, size_t second) {
     return first > second ? first : second;
 }
 
-size_t min(size_t first, size_t second) {
-    return first < second ? first : second;
-}
-
 channel *channel_create() {
     channel *ch = malloc(sizeof(channel));
     pthread_rwlock_init(&ch->rwlock, NULL);

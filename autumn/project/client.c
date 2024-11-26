@@ -45,9 +45,8 @@ void *client_func(void *arg) {
     char request[8096];
     memset(request, 0, 8096);
     snprintf(request, 8096,
-             "GET http://%s/file?filename=%s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n",
+             "GET http://%s/ HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n",
              host,
-             filename,
              host);
 
     if (write(client_socket, request, strlen(request)) == -1) {
@@ -75,7 +74,7 @@ void *client_func(void *arg) {
 
 
 int main(int argc, char **argv) {
-    int num = 10;
+    int num = 1;
     int args[num];
     pthread_t clients[num];
     for (int i = 0; i < num; i++) {
