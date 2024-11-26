@@ -56,17 +56,15 @@ void clear_node(HashNode *node) {
 }
 
 // real cleaning
-void gc_free_items(GarbageCollector *gc, pthread_rwlock_t *rwlock) {
-    pthread_rwlock_wrlock(rwlock);
+void gc_free_items(GarbageCollector *gc) {
     for (int i = 0; i < gc->size; i++) {
         clear_node(gc->garbage[i]);
         gc->garbage[i] = NULL;
         gc->size--;
     }
-    pthread_rwlock_unlock(rwlock);
 }
 
-//inner function, must be locked before (readlock), appends items to gc to clean after
+//inner function, must be locked before (wrlock), appends items to gc to clean after
 void hashmap_gc_clear_oldest(HashMap *hashmap) {
     HashNode *oldest = NULL;
     HashNode *parent_of_oldest = NULL;
@@ -107,7 +105,7 @@ void hashmap_gc_clear_oldest(HashMap *hashmap) {
 bool hashmap_gc_do_iter(HashMap *map, time_t oldest_time) {
     bool cleaned = false;
     if (map->gc.last_checked_index == TABLE_SIZE) {
-        gc_free_items(&map->gc, &map->rwlock);
+        gc_free_items(&map->gc);
         map->gc.last_checked_index = 0;
         cleaned = true;
         map->gc.last_checked_index = 0;
