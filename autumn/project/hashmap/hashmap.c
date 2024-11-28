@@ -162,18 +162,24 @@ HashMap *create_hashmap() {
     return hashmap;
 }
 
-void _resolve_collision(HashMap *hashmap, HashNode *newNode, unsigned int index) {
+//returns true if item was inserted/replaced
+bool _resolve_collision(HashMap *hashmap, HashNode *newNode, unsigned int index, bool replace) {
     if (hashmap->table[index] == NULL) {
         hashmap->table[index] = newNode;
         hashmap->size++;
+        return true;
     } else {
         HashNode *temp = hashmap->table[index];
         while (temp) {
             if (strcmp(temp->key, newNode->key) == 0) {
-                temp->data = newNode->data;
-                free(newNode->key);
-                free(newNode);
-                return;
+                if (replace) {
+                    temp->data = newNode->data;
+                    free(newNode->key);
+                    free(newNode);
+                    return true;
+                } else {
+                    return false;
+                }
             }
             temp = temp->next;
         }
@@ -183,6 +189,7 @@ void _resolve_collision(HashMap *hashmap, HashNode *newNode, unsigned int index)
         newNode->next = hashmap->table[index];
         hashmap->table[index] = newNode;
         hashmap->size++;
+        return true;
     }
 }
 
@@ -200,21 +207,32 @@ HashNode *_create_new_node(const char *key, const char *value) {
     return newNode;
 }
 
-void insert_and_capture(HashMap *hashmap, const char *key, const char *value, cached_data *out) {
+bool insert_and_capture(HashMap *hashmap, const char *key, const char *value, cached_data *out) {
     unsigned int index = hash(key);
     HashNode *newNode = _create_new_node(key, value);
     *out = newNode->data;
     pthread_rwlock_wrlock(&hashmap->rwlock);
-    _resolve_collision(hashmap, newNode, index);
+    return _resolve_collision(hashmap, newNode, index, false);
 }
 
-void insert_item(HashMap *hashmap, const char *key, const char *value) {
+bool insert_item(HashMap *hashmap, const char *key, const char *value) {
     unsigned int index = hash(key);
     HashNode *newNode = _create_new_node(key, value);
     pthread_rwlock_wrlock(&hashmap->rwlock);
-    _resolve_collision(hashmap, newNode, index);
+    bool inserted = _resolve_collision(hashmap, newNode, index, false);
     pthread_rwlock_unlock(&hashmap->rwlock);
+    return inserted;
 }
+
+bool insert_replace_item(HashMap *hashmap, const char *key, const char *value) {
+    unsigned int index = hash(key);
+    HashNode *newNode = _create_new_node(key, value);
+    pthread_rwlock_wrlock(&hashmap->rwlock);
+    bool inserted = _resolve_collision(hashmap, newNode, index, true);
+    pthread_rwlock_unlock(&hashmap->rwlock);
+    return inserted;
+}
+
 
 bool get_item(HashMap *hashmap, const char *key, cached_data *data) {
     unsigned int index = hash(key);

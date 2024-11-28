@@ -190,10 +190,10 @@ int send_data_from_channel(channel *ch, int client_socket, Logger *logger) {
                 return -1;
             }
 
-            LOG(logger, INFO, "send %d bytes to client", read_num);
+            LOG(logger, INFO, "sent %d bytes to client", read_num);
 
         } else if (!end) {
-            LOG(logger, INFO, "wait for data in channel", NULL);
+            LOG(logger, INFO, "waiting for data in channel", NULL);
             channel_wait_for_data(ch, offset);
             LOG(logger, INFO, "waked for data", NULL);
         } else {
@@ -248,8 +248,9 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     LOG(logger, INFO, "got host connection", NULL);
 //    insert_and_capture(cache, key, NULL, &data);
 
+    bool inserted;
     BENCHMARK_START
-        insert_item(cache, key, NULL);
+        inserted = insert_item(cache, key, NULL);
         ok = capture_item(cache, key, &data);
     BENCHMARK_END(res)
     if (!ok) {
@@ -259,27 +260,32 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
         return -1;
     }
 
-    LOG(logger, INFO, "insert to cache done in %ld ms", res);
-
-    if (send_request(destination_socket, request) != 0) {
-        clear_request(request);
-        close(destination_socket);
-        return -1;
-    }
-
-    channel *ch = data.data;
-
     pthread_t tid;
-    read_data_args args = {destination_socket, ch};
+
+    if (inserted) {
+
+        LOG(logger, INFO, "insert to cache done in %ld ms", res);
+
+        if (send_request(destination_socket, request) != 0) {
+            clear_request(request);
+            close(destination_socket);
+            return -1;
+        }
+
+        channel *ch = data.data;
+        read_data_args args = {destination_socket, ch};
 
 
-    int err = pthread_create(&tid, NULL, read_data, &args);
+        int err = pthread_create(&tid, NULL, read_data, &args);
 
-    if (err != 0) {
-        perror("pthread_create");
-        close(destination_socket);
-        clear_request(request);
-        return -1;
+        if (err != 0) {
+            perror("pthread_create");
+            close(destination_socket);
+            clear_request(request);
+            return -1;
+        }
+    } else {
+        LOG(logger, INFO, "data was inserted by another thread", NULL);
     }
 
     LOG(logger, INFO, "starting sending data from channel", NULL);
@@ -287,7 +293,9 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     BENCHMARK_START
         send_data_from_channel(data.data, client_socket, logger);
         release_item(cache, key);
-        pthread_join(tid, NULL);
+        if (inserted) {
+            pthread_join(tid, NULL);
+        }
     BENCHMARK_END(res)
 
     LOG(logger, INFO, "sending from channel done in %ld ms", res);
@@ -351,7 +359,7 @@ void *handle_client(void *arg) {
     char name[128];
     snprintf(name, 128, "logs/%d.log", tid);
     FILE *file = fopen(name, "w");
-    Logger *logger = logger_create(file, INFO);
+    Logger *logger = logger_create(stdout, INFO);
 
     char *buff = read_request(client_socket);
     if (buff == NULL) {
