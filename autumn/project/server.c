@@ -91,7 +91,7 @@ void init_server(Server *server) {
     server->last_clean_time = 0;
 }
 
-int get_requested_socket_connection(char *hostname, const Logger *logger) {
+int get_requested_socket_connection(const char *hostname, const Logger *logger) {
     struct sockaddr_in sockaddr_in;
     struct timeval timeout;
     timeout.tv_sec = 3; // after 3 seconds connect() will timeout
@@ -99,18 +99,18 @@ int get_requested_socket_connection(char *hostname, const Logger *logger) {
 
     const int socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (socket_fd == -1) {
-        perror("socket");
+        LOG(logger, ERROR, strerror(errno), NULL);
         return -1;
     }
 
     const struct hostent *hostent = gethostbyname(hostname);
     if (hostent == NULL) {
-        LOG(logger, ERROR, "error: gethostbyname(\"%s\")\n", hostname);
+        LOG(logger, ERROR, strerror(errno), NULL);
         return -1;
     }
     const in_addr_t in_addr = inet_addr(inet_ntoa(*(struct in_addr *) *hostent->h_addr_list));
     if (in_addr == (in_addr_t) -1) {
-        LOG(logger, ERROR, "error: inet_addr(\"%s\")\n", *hostent->h_addr_list);
+        LOG(logger, ERROR, strerror(errno), NULL);
         return -1;
     }
     sockaddr_in.sin_addr.s_addr = in_addr;
@@ -127,23 +127,10 @@ int get_requested_socket_connection(char *hostname, const Logger *logger) {
     return socket_fd;
 }
 
-int ensure_write(const int dest, const char *data, const size_t num) {
-    ssize_t num_bytes_total = 0;
-    while (num_bytes_total < num) {
-        const ssize_t num_bytes_last = write(dest, data + num_bytes_total, num - num_bytes_total);
-        if (num_bytes_last == -1) {
-            perror("write");
-            return -1;
-        }
-        num_bytes_total += num_bytes_last;
-    }
-    return 0;
-}
-
 int send_request(const int socket, const http_request *req) {
     char *str_req = to_string(req);
     const size_t len = strlen(str_req);
-    if (ensure_write(socket, str_req, len) == 0) {
+    if (write(socket, str_req, len) != -1) {
         free(str_req);
         return 0;
     }
@@ -444,6 +431,9 @@ void listen_and_accept(Server *server) {
         }
     }
     LOG(mainLogger, INFO, "shutting down application, waiting for cleaner", NULL);
+    if (pthread_kill(clean, SIGINT)) {
+        LOG(mainLogger, ERROR, strerror(errno), NULL);
+    }
     logger_clear(mainLogger);
     pthread_exit(NULL);
 }
