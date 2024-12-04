@@ -14,13 +14,14 @@
 #include "request.h"
 #include "hashmap/hashmap.h"
 #include "logger/logger.h"
+#include <errno.h>
 
 #define LOG(logger, level, format, ...) ({char msg[128]; snprintf(msg, 128, format, __VA_ARGS__); logger_message(logger, msg, level);})
 #define BENCHMARK_START {struct timeval _start; gettimeofday(&_start, NULL);
 #define BENCHMARK_END(res) struct timeval _stop; gettimeofday(&_stop, NULL); res = (_stop.tv_sec - _start.tv_sec) * 1000000 + _stop.tv_usec - _start.tv_usec;}
 
 const int PORT = 80;
-const int BUFF_SIZE = 4096;
+const int BUFF_SIZE = 4096 * 8;
 const int TTL = 300;
 volatile bool SHUTDOWN;
 
@@ -120,7 +121,7 @@ int get_requested_socket_connection(char *hostname, Logger *logger) {
     setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
     if (connect(socket_fd, (struct sockaddr *) &sockaddr_in, sizeof(sockaddr_in)) == -1) {
-        perror("connect");
+        LOG(logger, ERROR, strerror(errno), NULL);
         return -1;
     }
 
@@ -156,11 +157,13 @@ int send_request(int socket, http_request *req) {
 typedef struct read_data_args {
     int from;
     channel *ch;
+    Logger *logger;
 } read_data_args;
 
 void *read_data(void *args) {
     read_data_args *parsed = args;
     int from = parsed->from;
+    Logger *logger = parsed->logger;
     channel *ch = parsed->ch;
     char buffer[BUFF_SIZE];
     size_t read_num = 0;
@@ -172,7 +175,7 @@ void *read_data(void *args) {
     }
     channel_set_whole(ch);
     if (read_num == -1) {
-        perror("read");
+        LOG(logger, ERROR, strerror(errno), NULL);
     }
     return NULL;
 }
@@ -194,6 +197,7 @@ int send_data_from_channel(channel *ch, int client_socket, Logger *logger) {
 
         } else if (!end) {
             LOG(logger, INFO, "waiting for data in channel", NULL);
+            //usleep(1000);
             channel_wait_for_data(ch, offset);
             LOG(logger, INFO, "waked for data", NULL);
         } else {
@@ -279,7 +283,7 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
         int err = pthread_create(&tid, NULL, read_data, &args);
 
         if (err != 0) {
-            perror("pthread_create");
+            LOG(logger, ERROR, strerror(errno), NULL);
             close(destination_socket);
             clear_request(request);
             return -1;
@@ -311,14 +315,14 @@ typedef struct handle_client_args {
 } handle_client_args;
 
 
-char *read_request(int client_fd) {
+char *read_request(int client_fd, Logger *logger) {
     char *buff = malloc(BUFF_SIZE);
     if (buff == NULL) {
-        perror("malloc");
+        LOG(logger, ERROR, strerror(errno), NULL);
         return NULL;
     }
 
-    char *end = "\r\n\r\n";
+    char *end = "\r\n\r\n\0";
     size_t end_len = 4;
 
     size_t buff_size = BUFF_SIZE;
@@ -326,24 +330,34 @@ char *read_request(int client_fd) {
     size_t number_read;
     while ((number_read = read(client_fd, buff + total_read, BUFF_SIZE)) > 0) {
         total_read += number_read;
+
+        LOG(logger, INFO, "read %d bytes of request data", total_read);
+
         if (buff_size == total_read) {
             char *tmp = buff;
             buff_size *= 2;
             buff = realloc(buff, buff_size);
             if (buff == NULL) {
-                perror("realloc");
+                LOG(logger, ERROR, strerror(errno), NULL);
                 free(tmp);
                 return NULL;
             }
         }
 
+        buff[total_read] = '\0';
+
         if (total_read > end_len && (strcmp(end, buff + total_read - 4) == 0)) {
             break;
         }
 
+        LOG(logger, INFO, "waiting for next bytes (strcmp res: %d)", strcmp(end, buff + total_read - 4));
+
     }
+
+    LOG(logger, INFO, "full request received (%d bytes)", total_read);
+
     if (number_read == -1) {
-        perror("read() failed");
+        LOG(logger, ERROR, strerror(errno), NULL);
         free(buff);
         return NULL;
     }
@@ -359,16 +373,25 @@ void *handle_client(void *arg) {
     char name[128];
     snprintf(name, 128, "logs/%d.log", tid);
     FILE *file = fopen(name, "w");
-    Logger *logger = logger_create(stdout, INFO);
+    Logger *logger = logger_create(file, INFO);
 
-    char *buff = read_request(client_socket);
+    uint64_t res;
+    char *buff;
+    BENCHMARK_START
+        buff = read_request(client_socket, logger);
+    BENCHMARK_END(res)
     if (buff == NULL) {
+        LOG(logger, ERROR, "error while reading user http request", NULL);
         free(parsed);
         close(client_socket);
+        logger_clear(logger);
+        fclose(file);
         return NULL;
     }
 
-    uint64_t res;
+    LOG(logger, INFO, "request read in %ld ms", res);
+
+
     BENCHMARK_START
         send_cached_data(client_socket, buff, parsed->cache, logger);
     BENCHMARK_END(res)
@@ -385,6 +408,7 @@ void *handle_client(void *arg) {
 
 void listen_and_accept(Server *server) {
     int err = listen(server->socket_fd, 100);
+    Logger *mainLogger = logger_create(stdout, INFO);
 
     pthread_t clean;
     pthread_attr_t attr;
@@ -393,7 +417,7 @@ void listen_and_accept(Server *server) {
     pthread_create(&clean, &attr, cleanup, server);
 
     if (err == -1) {
-        perror("listen() failed");
+        LOG(mainLogger, ERROR, strerror(errno), NULL);
         close(server->socket_fd);
         abort();
     }
@@ -402,13 +426,11 @@ void listen_and_accept(Server *server) {
     pthread_t handle_thread;
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-    Logger *mainLogger = logger_create(stdout, INFO);
-
     while (!SHUTDOWN) {
         unsigned int len;
         int client_socket = accept(server->socket_fd, (struct sockaddr *) &client_addr, &len);
         if (client_socket == -1) {
-            LOG(mainLogger, WARNING, "accept() failed", NULL);
+            LOG(mainLogger, WARNING, strerror(errno), NULL);
             if (SHUTDOWN) {
                 break;
             }
@@ -447,7 +469,7 @@ static void registerSignal() {
 
 
 int main() {
-    registerSignal();
+    //registerSignal();
     Server server;
     init_server(&server);
     listen_and_accept(&server);
