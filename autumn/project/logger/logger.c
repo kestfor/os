@@ -19,8 +19,7 @@ typedef struct Logger {
 } Logger;
 
 
-
-Logger *logger_create(FILE *stream, enum LogLevel level) {
+Logger *logger_create(FILE *stream, const enum LogLevel level) {
     Logger *res = malloc(sizeof(Logger));
     res->stream = stream;
     res->logging_level = level;
@@ -31,8 +30,7 @@ void logger_clear(Logger *l) {
     free(l);
 }
 
-void logger_message(Logger *l, const char *msg, enum LogLevel level) {
-
+void logger_message(const Logger *l, const char *msg, const enum LogLevel level) {
     char *level_str;
     char *color;
     switch (level) {
@@ -52,39 +50,41 @@ void logger_message(Logger *l, const char *msg, enum LogLevel level) {
             level_str = "CRITICAL";
             color = RED;
             break;
+        default:
+            level_str = "INFO";
+            color = GRN;
     }
 
-    time_t rawtime;
-    struct tm *timeinfo;
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
+    time_t raw_time;
+    time(&raw_time);
+    const struct tm *time_info = localtime(&raw_time);
     char time_str[128];
-    asctime_r(timeinfo, time_str);
+    asctime_r(time_info, time_str);
     time_str[strlen(time_str) - 1] = '\0';
     if (l->logging_level > level) {
-        return;
     } else {
         char *reset = RESET;
         if (l->stream != stdout && l->stream != stderr) {
             color = "";
             reset = "";
         }
-        fprintf(l->stream,  "%s%s::%s::%s%s\n", color, level_str, time_str, msg, reset);
+        fprintf(l->stream, "%s%s::%s::%s%s\n", color, level_str, time_str, msg, reset);
+
     }
 }
 
-void logger_info(Logger *l, const char *format) {
-    logger_message(l, format, INFO);
+void logger_info(const Logger *l, const char *msg) {
+    logger_message(l, msg, INFO);
 }
 
-void logger_warning(Logger *l, const char *format) {
-    logger_message(l, format, WARNING);
+void logger_warning(const Logger *l, const char *msg) {
+    logger_message(l, msg, WARNING);
 }
 
-void logger_error(Logger *l, const char *format) {
-    logger_message(l, format, ERROR);
+void logger_error(const Logger *l, const char *msg) {
+    logger_message(l, msg, ERROR);
 }
 
-void logger_critical(Logger *l, const char *format) {
-    logger_message(l, format, CRITICAL);
+void logger_critical(const Logger *l, const char *msg) {
+    logger_message(l, msg, CRITICAL);
 }

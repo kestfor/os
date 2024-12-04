@@ -1,8 +1,6 @@
 #ifndef PROXY_HASHMAP_H
 #define PROXY_HASHMAP_H
 
-#include <stddef.h>
-#include <time.h>
 #include <stdbool.h>
 #include "../channel/channel.h"
 
@@ -33,7 +31,7 @@ void clear_old(HashMap *hashmap, clock_t last_time);
 bool capture_item(HashMap *hashmap, const char *key, cached_data *data);
 
 // thread safe for channel, if item was found, it should be released later
-void release_item(HashMap *hashmap, const char *key);
+void release_item(HashMap *hashmap);
 
 bool hashmap_gc_do_iter(HashMap *hashmap, time_t oldest_time);
 

@@ -16,8 +16,11 @@ typedef struct http_request {
 } http_request;
 
 void get_string_method(enum methods method, char **res);
+
 http_request *create_request(const char *request);
+
 void clear_request(http_request *req);
-char *to_string(http_request *req);
+
+char *to_string(const http_request *req);
 
 #endif //PROXY_REQUEST_H

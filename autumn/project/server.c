@@ -1,5 +1,4 @@
 #define _GNU_SOURCE
-
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <stdlib.h>
@@ -31,14 +30,14 @@ typedef struct Server {
     time_t last_clean_time;
 } Server;
 
-void close_server(Server *server) {
+void close_server(const Server *server) {
     close(server->socket_fd);
     free_hashmap(server->cache);
 }
 
 void *cleanup(void *args) {
     Server *s = args;
-    time_t time_step = TTL / 4;
+    const time_t time_step = TTL / 4;
     s->last_clean_time = time(NULL) - TTL;
     FILE *file = fopen("logs/cleaning.log", "w");
     Logger *logger = logger_create(file, INFO);
@@ -80,7 +79,7 @@ void init_server(Server *server) {
     server_addr.sin_port = htons(PORT);
     bzero(&(server_addr.sin_zero), 8);
 
-    int err = bind(server->socket_fd, (struct sockaddr *) &server_addr, sizeof(server_addr));
+    const int err = bind(server->socket_fd, (struct sockaddr *) &server_addr, sizeof(server_addr));
 
     if (err == -1) {
         perror("bind() failed");
@@ -92,26 +91,26 @@ void init_server(Server *server) {
     server->last_clean_time = 0;
 }
 
-int get_requested_socket_connection(char *hostname, Logger *logger) {
+int get_requested_socket_connection(char *hostname, const Logger *logger) {
     struct sockaddr_in sockaddr_in;
     struct timeval timeout;
     timeout.tv_sec = 3; // after 3 seconds connect() will timeout
     timeout.tv_usec = 0;
 
-    int socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    const int socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (socket_fd == -1) {
         perror("socket");
         return -1;
     }
 
-    struct hostent *hostent = gethostbyname(hostname);
+    const struct hostent *hostent = gethostbyname(hostname);
     if (hostent == NULL) {
         LOG(logger, ERROR, "error: gethostbyname(\"%s\")\n", hostname);
         return -1;
     }
-    in_addr_t in_addr = inet_addr(inet_ntoa(*(struct in_addr *) *(hostent->h_addr_list)));
-    if (in_addr == (in_addr_t) (-1)) {
-        LOG(logger, ERROR, "error: inet_addr(\"%s\")\n", *(hostent->h_addr_list));
+    const in_addr_t in_addr = inet_addr(inet_ntoa(*(struct in_addr *) *hostent->h_addr_list));
+    if (in_addr == (in_addr_t) -1) {
+        LOG(logger, ERROR, "error: inet_addr(\"%s\")\n", *hostent->h_addr_list);
         return -1;
     }
     sockaddr_in.sin_addr.s_addr = in_addr;
@@ -128,11 +127,10 @@ int get_requested_socket_connection(char *hostname, Logger *logger) {
     return socket_fd;
 }
 
-int ensure_write(int dest, char *data, size_t num) {
-    ssize_t num_bytes_total, num_bytes_last;
-    num_bytes_total = 0;
+int ensure_write(const int dest, const char *data, const size_t num) {
+    ssize_t num_bytes_total = 0;
     while (num_bytes_total < num) {
-        num_bytes_last = write(dest, data + num_bytes_total, num - num_bytes_total);
+        const ssize_t num_bytes_last = write(dest, data + num_bytes_total, num - num_bytes_total);
         if (num_bytes_last == -1) {
             perror("write");
             return -1;
@@ -142,16 +140,15 @@ int ensure_write(int dest, char *data, size_t num) {
     return 0;
 }
 
-int send_request(int socket, http_request *req) {
+int send_request(const int socket, const http_request *req) {
     char *str_req = to_string(req);
-    size_t len = strlen(str_req);
+    const size_t len = strlen(str_req);
     if (ensure_write(socket, str_req, len) == 0) {
         free(str_req);
         return 0;
-    } else {
-        free(str_req);
-        return -1;
     }
+    free(str_req);
+    return -1;
 }
 
 typedef struct read_data_args {
@@ -160,10 +157,10 @@ typedef struct read_data_args {
     Logger *logger;
 } read_data_args;
 
-void *read_data(void *args) {
-    read_data_args *parsed = args;
-    int from = parsed->from;
-    Logger *logger = parsed->logger;
+void *read_data(const void *args) {
+    const read_data_args *parsed = args;
+    const int from = parsed->from;
+    const Logger *logger = parsed->logger;
     channel *ch = parsed->ch;
     char buffer[BUFF_SIZE];
     size_t read_num = 0;
@@ -180,12 +177,12 @@ void *read_data(void *args) {
     return NULL;
 }
 
-int send_data_from_channel(channel *ch, int client_socket, Logger *logger) {
+int send_data_from_channel(channel *ch, const int client_socket, const Logger *logger) {
     int offset = 0;
     while (true) {
         char buffer[BUFF_SIZE];
         int read_num;
-        bool end = channel_read_available(ch, buffer, offset, BUFF_SIZE, &read_num);
+        const bool end = channel_read_available(ch, buffer, offset, BUFF_SIZE, &read_num);
         offset += read_num;
         if (read_num > 0) {
             if (write(client_socket, buffer, read_num) < 0) {
@@ -194,7 +191,6 @@ int send_data_from_channel(channel *ch, int client_socket, Logger *logger) {
             }
 
             LOG(logger, INFO, "sent %d bytes to client", read_num);
-
         } else if (!end) {
             LOG(logger, INFO, "waiting for data in channel", NULL);
             //usleep(1000);
@@ -207,14 +203,14 @@ int send_data_from_channel(channel *ch, int client_socket, Logger *logger) {
     return 0;
 }
 
-int send_cached_data(const int client_socket, const char *str_req, HashMap *cache, Logger *logger) {
+int send_cached_data(const int client_socket, const char *str_req, HashMap *cache, const Logger *logger) {
     http_request *request = create_request(str_req);
 
     if (request == NULL) {
         return -1;
     }
 
-    char *key = to_string(request);
+    const char *key = to_string(request);
     cached_data data;
     bool ok;
     uint64_t res;
@@ -223,25 +219,26 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     BENCHMARK_END(res)
     LOG(logger, INFO, "cache checked in %ld ms", res);
 
-    if (ok && ((time(NULL) - data.cached_time) < TTL)) {
+    if (ok && time(NULL) - data.cached_time < TTL) {
         // cache hit
         LOG(logger, INFO, "cache hit, sending data...", NULL);
 
         BENCHMARK_START
             send_data_from_channel(data.data, client_socket, logger);
-            release_item(cache, key);
+            release_item(cache);
         BENCHMARK_END(res)
 
         LOG(logger, INFO, "sending from channel done in %ld ms", res);
         return 0;
-    } else if (ok) {
+    }
+    if (ok) {
         // cache hit, but data outdated
-        release_item(cache, key);
+        release_item(cache);
     }
 
     LOG(logger, INFO, "cache miss, connecting to host...", NULL);
 
-    int destination_socket = get_requested_socket_connection(request->hostname, logger);
+    const int destination_socket = get_requested_socket_connection(request->hostname, logger);
 
     if (destination_socket == -1) {
         LOG(logger, WARNING, "error establishing connection to server", NULL);
@@ -250,7 +247,7 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     }
 
     LOG(logger, INFO, "got host connection", NULL);
-//    insert_and_capture(cache, key, NULL, &data);
+    //    insert_and_capture(cache, key, NULL, &data);
 
     bool inserted;
     BENCHMARK_START
@@ -267,7 +264,6 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     pthread_t tid;
 
     if (inserted) {
-
         LOG(logger, INFO, "insert to cache done in %ld ms", res);
 
         if (send_request(destination_socket, request) != 0) {
@@ -280,7 +276,7 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
         read_data_args args = {destination_socket, ch};
 
 
-        int err = pthread_create(&tid, NULL, read_data, &args);
+        const int err = pthread_create(&tid, NULL, read_data, &args);
 
         if (err != 0) {
             LOG(logger, ERROR, strerror(errno), NULL);
@@ -296,7 +292,7 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
 
     BENCHMARK_START
         send_data_from_channel(data.data, client_socket, logger);
-        release_item(cache, key);
+        release_item(cache);
         if (inserted) {
             pthread_join(tid, NULL);
         }
@@ -315,23 +311,22 @@ typedef struct handle_client_args {
 } handle_client_args;
 
 
-char *read_request(int client_fd, Logger *logger) {
+char *read_request(const int client_fd, const Logger *logger) {
     char *buff = malloc(BUFF_SIZE);
     if (buff == NULL) {
         LOG(logger, ERROR, strerror(errno), NULL);
         return NULL;
     }
 
-    char *end = "\r\n\r\n\0";
-    size_t end_len = 4;
-
     size_t buff_size = BUFF_SIZE;
     size_t total_read = 0;
     size_t number_read;
     while ((number_read = read(client_fd, buff + total_read, BUFF_SIZE)) > 0) {
+        const size_t end_len = 4;
+        const char *end = "\r\n\r\n\0";
         total_read += number_read;
 
-        LOG(logger, INFO, "read %d bytes of request data", total_read);
+        LOG(logger, INFO, "read %ld bytes of request data", total_read);
 
         if (buff_size == total_read) {
             char *tmp = buff;
@@ -351,10 +346,9 @@ char *read_request(int client_fd, Logger *logger) {
         }
 
         LOG(logger, INFO, "waiting for next bytes (strcmp res: %d)", strcmp(end, buff + total_read - 4));
-
     }
 
-    LOG(logger, INFO, "full request received (%d bytes)", total_read);
+    LOG(logger, INFO, "full request received (%ld bytes)", total_read);
 
     if (number_read == -1) {
         LOG(logger, ERROR, strerror(errno), NULL);
@@ -367,9 +361,9 @@ char *read_request(int client_fd, Logger *logger) {
 
 void *handle_client(void *arg) {
     handle_client_args *parsed = arg;
-    int client_socket = parsed->client_socket;
+    const int client_socket = parsed->client_socket;
 
-    int tid = gettid();
+    const int tid = gettid();
     char name[128];
     snprintf(name, 128, "logs/%d.log", tid);
     FILE *file = fopen(name, "w");
@@ -428,7 +422,7 @@ void listen_and_accept(Server *server) {
 
     while (!SHUTDOWN) {
         unsigned int len;
-        int client_socket = accept(server->socket_fd, (struct sockaddr *) &client_addr, &len);
+        const int client_socket = accept(server->socket_fd, (struct sockaddr *) &client_addr, &len);
         if (client_socket == -1) {
             LOG(mainLogger, WARNING, strerror(errno), NULL);
             if (SHUTDOWN) {
@@ -440,7 +434,7 @@ void listen_and_accept(Server *server) {
         handle_client_args *args = malloc(sizeof(handle_client_args));
         args->client_socket = client_socket;
         args->cache = server->cache;
-        int err = pthread_create(&handle_thread, NULL, handle_client, args);
+        err = pthread_create(&handle_thread, NULL, handle_client, args);
         if (err != 0) {
             LOG(mainLogger, WARNING, "pthread_create failed, client wasn't handled", NULL);
             close(client_socket);
@@ -448,7 +442,6 @@ void listen_and_accept(Server *server) {
         } else {
             LOG(mainLogger, INFO, "new client connected", NULL);
         }
-
     }
     LOG(mainLogger, INFO, "shutting down application, waiting for cleaner", NULL);
     logger_clear(mainLogger);
@@ -460,8 +453,7 @@ static void handleSignal(int signal) {
 }
 
 static void registerSignal() {
-    struct sigaction action;
-    memset(&action, 0, sizeof(action));
+    struct sigaction action = {0};
     action.sa_handler = handleSignal;
     action.sa_flags = 0;
     sigaction(SIGINT, &action, NULL);
@@ -469,7 +461,7 @@ static void registerSignal() {
 
 
 int main() {
-    //registerSignal();
+    registerSignal();
     Server server;
     init_server(&server);
     listen_and_accept(&server);
