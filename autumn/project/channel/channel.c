@@ -63,12 +63,9 @@ void channel_wait_for_data(channel *ch, const int offset) {
 
 
 void channel_set_whole(channel *ch) {
-
-    //pthread_rwlock_wrlock(&ch->rwlock);
     pthread_mutex_lock(&ch->cond_mutex);
     ch->whole = true;
     pthread_cond_broadcast(&ch->cond_var);
-    //pthread_rwlock_unlock(&ch->rwlock);
     pthread_mutex_unlock(&ch->cond_mutex);
 }
 
@@ -116,31 +113,25 @@ int channel_write(channel *ch, const char *data, const size_t size) {
 
 bool channel_is_whole(channel *ch) {
     pthread_rwlock_rdlock(&ch->rwlock);
-    //pthread_mutex_lock(&ch->cond_mutex);
     const bool res = ch->whole;
     pthread_rwlock_unlock(&ch->rwlock);
-    //pthread_mutex_unlock(&ch->cond_mutex);
     return res;
 }
 
 void channel_set_empty(channel *ch) {
     pthread_rwlock_wrlock(&ch->rwlock);
-    //pthread_mutex_lock(&ch->cond_mutex);
     ch->actual_len = 0;
     pthread_rwlock_unlock(&ch->rwlock);
-    //pthread_mutex_unlock(&ch->cond_mutex);
 }
 
 bool channel_read_available(channel *ch, char *dest, const int offset, const int size, size_t *actual_read_num) {
     pthread_rwlock_rdlock(&ch->rwlock);
-    //pthread_mutex_lock(&ch->cond_mutex);
     bool end = ch->whole;
     if (offset >= ch->actual_len) {
         if (actual_read_num != NULL) {
             *actual_read_num = 0;
         }
         pthread_rwlock_unlock(&ch->rwlock);
-        //pthread_mutex_unlock(&ch->cond_mutex);
         return end;
     }
     size_t read_num = 0;
@@ -152,7 +143,6 @@ bool channel_read_available(channel *ch, char *dest, const int offset, const int
     }
     memcpy(dest, ch->data + offset, read_num);
     pthread_rwlock_unlock(&ch->rwlock);
-    //pthread_mutex_unlock(&ch->cond_mutex);
     if (actual_read_num != NULL) {
         *actual_read_num = read_num;
     }

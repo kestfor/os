@@ -180,7 +180,6 @@ int send_data_from_channel(channel *ch, const int client_socket, const Logger *l
             LOG(logger, INFO, "sent %d bytes to client", read_num);
         } else if (!end) {
             LOG(logger, INFO, "waiting for data in channel", NULL);
-            //usleep(1000);
             channel_wait_for_data(ch, offset);
             LOG(logger, INFO, "waked for data", NULL);
         } else {
