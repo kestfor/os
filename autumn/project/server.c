@@ -233,7 +233,6 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
     }
 
     LOG(logger, INFO, "got host connection", NULL);
-    //    insert_and_capture(cache, key, NULL, &data);
 
     bool inserted;
     BENCHMARK_START
