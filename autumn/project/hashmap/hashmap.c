@@ -55,10 +55,6 @@ void clear_node(HashNode *node) {
     free(node);
 }
 
-void gc_add_item(GarbageCollector *gc, HashNode *node) {
-    gc->garbage[gc->size++] = node;
-}
-
 // real cleaning
 void gc_free_items(GarbageCollector *gc) {
     for (int i = 0; i < gc->size; i++) {
@@ -112,7 +108,6 @@ bool hashmap_gc_do_iter(HashMap *hashmap, const time_t oldest_time) {
         gc_free_items(&hashmap->gc);
         hashmap->gc.last_checked_index = 0;
         cleaned = true;
-        hashmap->gc.last_checked_index = 0;
     }
     pthread_rwlock_wrlock(&hashmap->rwlock);
 
