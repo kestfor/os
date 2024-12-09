@@ -35,6 +35,4 @@ void release_item(HashMap *hashmap);
 
 bool hashmap_gc_do_iter(HashMap *hashmap, time_t oldest_time);
 
-bool insert_and_capture(HashMap *hashMap, const char *key, const char *value, cached_data *out);
-
 #endif //PROXY_HASHMAP_H

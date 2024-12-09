@@ -141,7 +141,7 @@ int send_request(const int socket, const http_request *req) {
 typedef struct read_data_args {
     int from;
     channel *ch;
-    Logger *logger;
+    const Logger *logger;
 } read_data_args;
 
 void *read_data(const void *args) {
@@ -165,7 +165,7 @@ void *read_data(const void *args) {
 }
 
 int send_data_from_channel(channel *ch, const int client_socket, const Logger *logger) {
-    int offset = 0;
+    volatile int offset = 0;
     while (true) {
         char buffer[BUFF_SIZE];
         int read_num;
@@ -258,7 +258,7 @@ int send_cached_data(const int client_socket, const char *str_req, HashMap *cach
         }
 
         channel *ch = data.data;
-        read_data_args args = {destination_socket, ch};
+        read_data_args args = {destination_socket, ch, logger};
 
 
         const int err = pthread_create(&tid, NULL, read_data, &args);

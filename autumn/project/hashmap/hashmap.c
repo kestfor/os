@@ -200,14 +200,6 @@ HashNode *_create_new_node(const char *key, const char *value) {
     return newNode;
 }
 
-bool insert_and_capture(HashMap *hashMap, const char *key, const char *value, cached_data *out) {
-    const unsigned int index = hash(key);
-    HashNode *newNode = _create_new_node(key, value);
-    *out = newNode->data;
-    pthread_rwlock_wrlock(&hashMap->rwlock);
-    return _resolve_collision(hashMap, newNode, index, false);
-}
-
 bool insert_item(HashMap *hashmap, const char *key, const char *value) {
     const unsigned int index = hash(key);
     HashNode *newNode = _create_new_node(key, value);
