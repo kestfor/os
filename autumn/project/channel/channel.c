@@ -47,13 +47,10 @@ void channel_clear(channel *ch) {
 
 void channel_wait_for_data(channel *ch, const int offset) {
     pthread_mutex_lock(&ch->cond_mutex);
-    while (true) {
-        if (ch->actual_len > offset || ch->whole) {
-            pthread_mutex_unlock(&ch->cond_mutex);
-            return;
-        }
+    while (!(ch->actual_len > offset || ch->whole)) {
         pthread_cond_wait(&ch->cond_var, &ch->cond_mutex);
     }
+    pthread_mutex_unlock(&ch->cond_mutex);
 }
 
 
